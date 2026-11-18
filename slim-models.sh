@@ -171,4 +171,4 @@ for f in "$COMFY"/models/{diffusion_models,text_encoders,vae,upscale_models}/*; 
   fi
 done
 echo
-c_g "完成。重启：cd /opt/ComfyUI && pkill -f main.py; sleep 2; nohup /opt/venv/bin/python -u main.py --disable-pinned-memory --disable-async-offload --disable-dynamic-vram --reserve-vram 2 --cache-none >> /workspace/comfy.log 2>&1 &"
+c_g "完成。重启：cd /opt/ComfyUI && pkill -f main.py; sleep 2; nohup /opt/venv/bin/python -u main.py --disable-pinned-memory --disable-async-offload --disable-dynamic-vram --reserve-vram 2 >> /workspace/comfy.log 2>&1 &"

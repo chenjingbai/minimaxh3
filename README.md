@@ -1,5 +1,3 @@
-AMD开发者空间领到的机子，可以直接用该仓库一键部署minih3图生视频模型并自动启动和生成隧道地址，实测脸不飘，生成快，可以拼接视频可以超分，一键部署一键启动，带隧道，有服务器状态，完美适合小白
-实测整个部署到启动不到20分钟。生视频384×640 10秒 四分钟 544×960 六分钟。建议544×960后超分，支持乘2乘4超分
 # W7900D + MiniMax H3 部署工具包
 
 在 AMD Radeon PRO W7900D（gfx1100 / RDNA3，48 GB）上跑 MiniMax H3 生成音视频，附带一个挂在 ComfyUI 里的 Web 工作台。
@@ -15,13 +13,20 @@ AMD开发者空间领到的机子，可以直接用该仓库一键部署minih3�
 ## 快速开始
 
 ```bash
-git clone https://github.com/chenjingbai/minimaxh3.git /workspace/h3-deploy
+git clone https://github.com/chenjingbai/minih3.git /workspace/h3-deploy
 cd /workspace/h3-deploy
 chmod +x *.sh
 
 # 一键部署（自动判断磁盘，25G 盘会走分流模式）
 nohup bash deploy-h3-lite.sh > /workspace/deploy.log 2>&1 &
 tail -f /workspace/deploy.log
+```
+
+部署完成后：
+
+```bash
+/workspace/tunnel.sh start     # 开隧道
+# 浏览器打开 https://<域名>/dsh
 ```
 
 脚本会自动处理工作台路径：从仓库目录找到 `dsh_console_h3/`，链到 `/workspace/dsh_console_h3`，再挂进 ComfyUI 的 `custom_nodes`。**不需要手动建目录或软链。**
@@ -72,21 +77,22 @@ Video Rebirth 的独立压缩模型 **13.7B**（原版 33B 的一半不到），
 
 ## 关键配置
 
-**启动参数（一个都不能少）**
+**启动参数**
 
 ```bash
 /opt/venv/bin/python -u main.py \
   --disable-pinned-memory --disable-async-offload --disable-dynamic-vram \
-  --reserve-vram 2 --cache-none
+  --reserve-vram 2
 ```
 
 | 参数 | 原因 |
 |---|---|
 | `--disable-pinned-memory` | H3 的 I2V 有 `VmPeak=66.9 GB` 记录，pinned memory 会把 55 GiB 撑爆并卡在 0% GPU |
-| `--disable-async-offload` / `--disable-dynamic-vram` | 两次 gfx1100 成功记录都关了 |
+| `--disable-async-offload` / `--disable-dynamic-vram` | 两次 gfx1100 成功记录都关了；也规避「软链模型 + 动态显存导致每次重载」的已知 issue（Comfy-Org/ComfyUI#14276） |
 | `--reserve-vram 2` | 给 VAE 解码留余量，避免「部分驱逐」把权重搞成 NaN（表现为黑帧） |
-| `--cache-none` | 同成功案例 |
 | `-u` | 不缓冲，print 立刻进日志 |
+
+**不要加 `--cache-none`** —— ComfyUI 官方说明里明确：加上它每次运行后都会释放所有模型，下次运行重新加载。实测 34 GB 模型每次重载约 **73 秒**固定开销（占 5 秒短片总耗时的 59%）。去掉后由 ComfyUI 自己按显存/内存状况决定是否保留。
 
 **不要加** `PYTORCH_ALLOC_CONF=expandable_segments:True` —— 这套 ROCm 栈上会静默损坏显存（输出发白 / 音频 NaN / 同 seed 不重现）。
 

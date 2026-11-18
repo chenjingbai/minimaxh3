@@ -146,7 +146,7 @@ cat <<'TIP'
 重启 ComfyUI：
   cd /opt/ComfyUI && /opt/venv/bin/python -u main.py \
     --disable-pinned-memory --disable-async-offload --disable-dynamic-vram \
-    --reserve-vram 2 --cache-none 2>&1 | tee /workspace/comfy.log
+    --reserve-vram 2 2>&1 | tee /workspace/comfy.log
 
 工作台：<隧道域名>/dsh
 

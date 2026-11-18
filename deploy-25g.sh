@@ -503,7 +503,7 @@ pkill -f 'venv/bin/python.*main\.py' 2>/dev/null; sleep 2
 cd "$COMFY" || exit 1
 nohup "$PY" -u main.py \
   --disable-pinned-memory --disable-async-offload --disable-dynamic-vram \
-  --reserve-vram 2 --cache-none >> "$LOG" 2>&1 &
+  --reserve-vram 2 >> "$LOG" 2>&1 &
 
 c_y "  等待就绪..."
 READY=0

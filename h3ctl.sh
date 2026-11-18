@@ -25,7 +25,7 @@ ARGS=(--disable-pinned-memory
       --disable-async-offload
       --disable-dynamic-vram
       --reserve-vram 2
-      --cache-none)
+)
 
 c_g() { printf '\033[32m%s\033[0m\n' "$*"; }
 c_y() { printf '\033[33m%s\033[0m\n' "$*"; }
