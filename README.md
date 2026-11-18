@@ -1,8 +1,9 @@
-# W7900D + MiniMax H3 部署工具包（AMD开发者空间领到的机子可以直接用这个仓库一键部署图生视频，不管是25G永久储存还是100G都可以，实测占用35G）
+# W7900D + MiniMax H3 部署工具包
 
 在 AMD Radeon PRO W7900D（gfx1100 / RDNA3，48 GB）上跑 MiniMax H3 生成音视频，附带一个挂在 ComfyUI 里的 Web 工作台。
 
 > 所有参数、字节数、sha256 都来自实机实测。
+> 踩过的坑记在 [H3-踩坑记录.md](H3-踩坑记录.md)，装之前建议先扫一眼。
 
 环境实测：ComfyUI **0.45.0** · comfy-kitchen **0.2.41** · torch **2.9.1+rocm7.2** 与 **2.12.0+rocm7.14** 均可
 本机：W7900D 48 GB · EPYC 9334 32C · 内存 cgroup **55 GiB**（`free` 看到的 503 G 是宿主机）· swap 0
@@ -12,7 +13,7 @@
 ## 快速开始
 
 ```bash
-git clone <this-repo> /workspace/h3-deploy
+git clone https://github.com/chenjingbai/minih3.git /workspace/h3-deploy
 cd /workspace/h3-deploy
 chmod +x *.sh
 
@@ -27,6 +28,10 @@ tail -f /workspace/deploy.log
 /workspace/tunnel.sh start     # 开隧道
 # 浏览器打开 https://<域名>/dsh
 ```
+
+脚本会自动处理工作台路径：从仓库目录找到 `dsh_console_h3/`，链到 `/workspace/dsh_console_h3`，再挂进 ComfyUI 的 `custom_nodes`。**不需要手动建目录或软链。**
+
+部署流程共 9 步：环境体检 → ComfyUI → 依赖 → int8 验证 → 下载模型 → 建软链 → 节点包 → 工作台 → 隧道 → 启动自检。任何一步失败都会明确报出原因。
 
 ---
 
@@ -188,6 +193,7 @@ for k in ['int8_linear','convrot_w4a4_linear','w4a8_int8_linear']:
 | 内存显示 100% | 看 `anon` 和 `file_mapped`，小就无害（页缓存） |
 | 慢 | 查 nvfp4 模拟路径 / 注意力后端 |
 
+更多见 [H3-踩坑记录.md](H3-踩坑记录.md)。
 
 ---
 
