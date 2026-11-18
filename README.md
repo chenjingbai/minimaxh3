@@ -15,20 +15,13 @@ AMD开发者空间领到的机子，可以直接用该仓库一键部署minih3�
 ## 快速开始
 
 ```bash
-git clone https://github.com/chenjingbai/minih3.git /workspace/h3-deploy
+git clone https://github.com/chenjingbai/minimaxh3.git /workspace/h3-deploy
 cd /workspace/h3-deploy
 chmod +x *.sh
 
 # 一键部署（自动判断磁盘，25G 盘会走分流模式）
 nohup bash deploy-h3-lite.sh > /workspace/deploy.log 2>&1 &
 tail -f /workspace/deploy.log
-```
-
-部署完成后：
-
-```bash
-/workspace/tunnel.sh start     # 开隧道
-# 浏览器打开 https://<域名>/dsh
 ```
 
 脚本会自动处理工作台路径：从仓库目录找到 `dsh_console_h3/`，链到 `/workspace/dsh_console_h3`，再挂进 ComfyUI 的 `custom_nodes`。**不需要手动建目录或软链。**
