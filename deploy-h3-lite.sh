@@ -210,12 +210,40 @@ done
 
 # ---------------------------------------------------------------- 7 工作台
 step "7/9 工作台"
-mkdir -p /workspace/dsh_console_h3
-ln -sfn /workspace/dsh_console_h3 "$COMFY/custom_nodes/dsh_console_h3"
-if [ -f /workspace/dsh_console_h3/__init__.py ]; then
-  c_g "  已就位"
+
+# 工作台代码可能在三个位置，按优先级找：
+#   1) 脚本同级目录的 dsh_console_h3/   ← git clone 后的默认位置
+#   2) /workspace/dsh_console_h3/       ← 手动上传的位置
+#   3) 已经在 /opt 装过
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WS_SRC=""
+for cand in "$SCRIPT_DIR/dsh_console_h3" /workspace/dsh_console_h3 /workspace/h3-deploy/dsh_console_h3; do
+  if [ -f "$cand/__init__.py" ] && [ -f "$cand/ui.html" ]; then
+    WS_SRC="$cand"; break
+  fi
+done
+
+if [ -n "$WS_SRC" ]; then
+  # 若源码不在 /workspace/dsh_console_h3，就链过去（保证持久 + 模板能读到）
+  if [ "$WS_SRC" != "/workspace/dsh_console_h3" ]; then
+    mkdir -p /workspace
+    if [ -e /workspace/dsh_console_h3 ] && [ ! -L /workspace/dsh_console_h3 ]; then
+      c_y "  /workspace/dsh_console_h3 已存在（非软链），就地使用"
+      WS_SRC=/workspace/dsh_console_h3
+    else
+      ln -sfn "$WS_SRC" /workspace/dsh_console_h3
+      c_g "  链接 $WS_SRC -> /workspace/dsh_console_h3"
+    fi
+  fi
+
+  rm -rf /workspace/dsh_console_h3/__pycache__ "$COMFY/custom_nodes/dsh_console_h3/__pycache__" 2>/dev/null || true
+  ln -sfn /workspace/dsh_console_h3 "$COMFY/custom_nodes/dsh_console_h3"
+  c_g "  工作台已挂载 -> $WS_SRC"
 else
-  c_y "  ★ 需上传 __init__.py 和 ui.html 到 /workspace/dsh_console_h3/"
+  mkdir -p /workspace/dsh_console_h3
+  ln -sfn /workspace/dsh_console_h3 "$COMFY/custom_nodes/dsh_console_h3"
+  c_y "  ★ 未找到工作台源码（__init__.py + ui.html）"
+  c_y "    把仓库里的 dsh_console_h3/ 放到脚本同级，或上传到 /workspace/dsh_console_h3/"
 fi
 
 # ---------------------------------------------------------------- 8 隧道
