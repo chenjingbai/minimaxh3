@@ -38,6 +38,16 @@ else
   GIT=$(command -v git 2>/dev/null || echo git)
 fi
 
+# 顺手把代理包装脚本挪走（仅本次容器有效，重建会恢复）
+# 注意：这里不用 c_y，因为色输出函数在后面才定义
+if [ -f /usr/local/bin/git ] && [ ! -L /usr/local/bin/git ] \
+   && head -3 /usr/local/bin/git 2>/dev/null | grep -q 'GH_PROXY_PREFIX'; then
+  if mv /usr/local/bin/git /usr/local/bin/git.proxy-wrapper.disabled 2>/dev/null; then
+    echo "  [git] 已禁用 /usr/local/bin/git 的代理包装（改用 $GIT 直连）"
+  fi
+fi
+hash -r 2>/dev/null || true
+
 # 三层回退拉一个 GitHub 仓库到目录：
 #   1) 真实 git 直连（超时 120s）
 #   2) tar.gz + 镜像 A
