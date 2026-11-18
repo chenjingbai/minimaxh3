@@ -148,24 +148,48 @@ need_pkg(){
 }
 
 PIP_LIST=""
+# $1 = pip 包名（可用 ==版本 或 >=约束），$2 = import 名
+# 注意：pip 名和 import 名经常不同（pillow/PIL、opencv-python-headless/cv2、pyyaml/yaml）
+# 第 1 个参数必须是 PyPI 上真实存在的名字，否则整批安装会一起失败
 add_pkg(){ need_pkg "$2" || PIP_LIST="$PIP_LIST $1"; }
 
-add_pkg "trampoline"                trampoline
-add_pkg "torchsde"                  torchsde
-add_pkg "kornia"                    kornia
-add_pkg "spandrel"                  spandrel
-add_pkg "comfyui_workflow_templates" comfyui_workflow_templates
-add_pkg "comfyui_frontend_package"  comfyui_frontend_package
-add_pkg "comfy_kitchen"             comfy_kitchen
-add_pkg "modelscope"                modelscope
-add_pkg "gguf"                      gguf
-add_pkg "PIL"                       pillow
-add_pkg "numpy"                     numpy
-add_pkg "av"                        av
+add_pkg "trampoline"                  trampoline
+add_pkg "torchsde"                    torchsde
+add_pkg "kornia"                      kornia
+add_pkg "spandrel"                    spandrel
+add_pkg "comfyui-workflow-templates"  comfyui_workflow_templates
+add_pkg "comfyui-frontend-package"    comfyui_frontend_package
+add_pkg "comfy-kitchen"               comfy_kitchen
+add_pkg "modelscope"                  modelscope
+add_pkg "gguf"                        gguf
+add_pkg "pillow"                      PIL
+add_pkg "numpy"                       numpy
+add_pkg "av"                          av
 
 if [ -n "$PIP_LIST" ]; then
   c_y "  需要补装:$PIP_LIST"
-  "$PY" -m pip install -q $PIP_LIST 2>&1 | tail -3
+  # 逐个装：一个失败不拖累其他，且能看清哪个真的装不上
+  FAILED_PKG=""
+  for p in $PIP_LIST; do
+    if ! "$PY" -m pip install -q "$p" 2>&1 | grep -qi '^ERROR'; then
+      :
+    fi
+    # 用 import 复查（pip 说成功也可能 import 不了）
+    case "$p" in
+      pillow)                       mod=PIL ;;
+      comfyui-workflow-templates)   mod=comfyui_workflow_templates ;;
+      comfyui-frontend-package)     mod=comfyui_frontend_package ;;
+      comfy-kitchen)                mod=comfy_kitchen ;;
+      *)                            mod=$(echo "$p" | tr '-' '_') ;;
+    esac
+    need_pkg "$mod" || FAILED_PKG="$FAILED_PKG $p"
+  done
+  if [ -n "$FAILED_PKG" ]; then
+    ng "以下包安装后仍无法 import:$FAILED_PKG"
+    c_y "  可尝试单独执行： $PY -m pip install $FAILED_PKG"
+  else
+    ok "依赖全部就绪"
+  fi
 else
   ok "全部依赖已就绪"
 fi
@@ -207,40 +231,49 @@ mkdir -p "$CORE"/{diffusion_models,vae,upscale_models} "$BIG"/text_encoders
 
 dl(){ # repo dir include...
   local repo="$1"; shift; local dir="$1"; shift
-  [ -x "$MSCLI" ] || { ng "modelscope 缺失，跳过"; return 1; }
+  [ -x "$MSCLI" ] || { ng "modelscope 缺失，无法下载"; return 1; }
   "$MSCLI" download --model "$repo" --local_dir "$dir" --include "$@" 2>&1 | tail -2
 }
 
-if [ ! -f "$DENOISER" ]; then
+DL_FAILED=0
+
+# 去噪器的真实落盘位置（下载后在 hyperflow/ 子目录，再链到 diffusion_models/）
+DENOISER_REAL="$CORE/hyperflow/fl2va_int8_convrot_comfyui/minimax_h3_fl2va_hyperflow_flash_14b-int8_convrot.safetensors"
+
+if [ -f "$DENOISER_REAL" ]; then
+  ok "去噪器已有（$DENOISER_REAL）"
+elif [ -f "$DENOISER" ]; then
+  ok "去噪器已有（$DENOISER）"
+else
   c_y "  [1/4] HyperFlow 去噪器 16.00 GB → $CORE"
   mkdir -p "$CORE/hyperflow"
   dl VideoRebirthAI/hyperflow-h3-flash "$CORE/hyperflow" \
-    'fl2va_int8_convrot_comfyui/minimax_h3_fl2va_hyperflow_flash_14b-int8_convrot.safetensors'
-  ln -sf "$CORE/hyperflow/fl2va_int8_convrot_comfyui/minimax_h3_fl2va_hyperflow_flash_14b-int8_convrot.safetensors" \
-         "$DENOISER" 2>/dev/null || true
-else
-  ok "去噪器已有，跳过"
+    'fl2va_int8_convrot_comfyui/minimax_h3_fl2va_hyperflow_flash_14b-int8_convrot.safetensors' || DL_FAILED=1
+  if [ -f "$DENOISER_REAL" ] && [ ! -e "$DENOISER" ]; then
+    ln -sf "$DENOISER_REAL" "$DENOISER" 2>/dev/null || true
+  fi
 fi
 
-if [ ! -f "$ENCODER" ]; then
+if [ -f "$ENCODER" ]; then
+  ok "编码器已有，跳过"
+else
   c_y "  [2/4] 文本编码器 15.69 GB → $BIG（overlay）"
   dl Comfy-Org/minimax-H3 "$BIG" \
-    'text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors'
-else
-  ok "编码器已有，跳过"
+    'text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors' || DL_FAILED=1
 fi
 
-if [ ! -f "$VVAE" ] || [ ! -f "$AVAE" ]; then
+if [ -f "$VVAE" ] && [ -f "$AVAE" ]; then
+  ok "VAE 已有，跳过"
+else
   c_y "  [3/4] 两个 VAE"
   dl Comfy-Org/minimax-H3 "$CORE" \
     'vae/minimax_h3_video_vae_int8_convrot.safetensors' \
-    'vae/minimax_h3_audio_vae_fp32.safetensors'
-else
-  ok "VAE 已有，跳过"
+    'vae/minimax_h3_audio_vae_fp32.safetensors' || DL_FAILED=1
 fi
 
-if [ ! -f "$UPSCALE" ]; then
-  c_y "  [4/4] 超分模型 67 MB"
+if [ -f "$UPSCALE" ]; then
+  ok "超分模型已有，跳过"
+else
   "$PY" - <<'PYPF' 2>&1 | tail -2
 import os, glob, shutil
 try:
@@ -264,11 +297,45 @@ c_b "  下载结果"
 du -sh "$CORE"/* 2>/dev/null | sed 's/^/    /'
 du -sh "$BIG"/text_encoders 2>/dev/null | sed 's/^/    /'
 
+# 下载失败就停下，别带着断链往后走
+if [ "$DL_FAILED" = 1 ]; then
+  echo
+  ng "有模型下载失败，后续步骤会拿到断链，先中止"
+  c_y "  常见原因：modelscope 未装 / 网络中断"
+  c_y "  修复后重跑本脚本即可（已下完的会跳过）"
+  exit 1
+fi
+
+# 软链前验证源文件真实存在（-f 会跟随软链，所以用实体路径检查）
+echo
+c_b "  实体文件校验"
+PROBLEM=0
+for f in "$DENOISER_REAL" "$DENOISER" "$ENCODER" "$VVAE" "$AVAE"; do
+  [ -z "$f" ] && continue
+  if [ -f "$f" ]; then
+    printf "    ✅ %-56s %s\n" "$(basename "$f")" "$(du -h "$f" 2>/dev/null | cut -f1)"
+  else
+    printf "    ❌ %-56s 缺失\n" "$(basename "$f")"
+    PROBLEM=1
+  fi
+done
+[ "$PROBLEM" = 1 ] && { ng "有必需模型缺失，中止"; exit 1; }
+
 # ---------------------------------------------------------------- 5 软链
 step "5/7 建立软链"
-link(){ [ -f "$1" ] || return 0; mkdir -p "$COMFY/models/$2"; ln -sf "$1" "$COMFY/models/$2/"; echo "  + $2/$(basename "$1")"; }
+link(){
+  [ -f "$1" ] || { ng "$(basename "$1") 源文件不存在，跳过"; return 0; }
+  mkdir -p "$COMFY/models/$2"
+  ln -sf "$1" "$COMFY/models/$2/"
+  echo "  + $2/$(basename "$1")"
+}
 
-link "$DENOISER" diffusion_models
+# 去噪器优先用实体路径，避免 DENOISER 本身就是软链时叠一层
+if [ -f "$DENOISER_REAL" ]; then
+  link "$DENOISER_REAL" diffusion_models
+else
+  link "$DENOISER" diffusion_models
+fi
 link "$ENCODER"  text_encoders
 link "$VVAE"     vae
 link "$AVAE"     vae
@@ -276,6 +343,21 @@ link "$UPSCALE"  upscale_models
 
 # 清断链
 find "$COMFY/models" -type l ! -exec test -e {} \; -delete 2>/dev/null || true
+
+# 软链完整性复查
+echo
+c_b "  软链复查"
+BROKEN=0
+for f in "$COMFY"/models/*/*.safetensors "$COMFY"/models/*/*.pth; do
+  [ -L "$f" ] || continue
+  if [ -e "$f" ]; then
+    printf "    ✅ %-50s → %s\n" "$(basename "$f")" "$(readlink -f "$f")"
+  else
+    printf "    ❌ %-50s 断链 → %s\n" "$(basename "$f")" "$(readlink "$f")"
+    BROKEN=$((BROKEN+1))
+  fi
+done
+[ "$BROKEN" -gt 0 ] && { ng "有 $BROKEN 条断链，中止"; exit 1; }
 
 # ---------------------------------------------------------------- 6 节点 + 工作台
 step "6/7 节点包与工作台"
