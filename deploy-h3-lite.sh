@@ -32,7 +32,37 @@ c_g(){ printf '\033[32m%s\033[0m\n' "$*"; }
 c_y(){ printf '\033[33m%s\033[0m\n' "$*"; }
 c_r(){ printf '\033[31m%s\033[0m\n' "$*"; }
 c_b(){ printf '\033[36m%s\033[0m\n' "$*"; }
-step(){ echo; c_b "==== $* ===="; }
+
+# ---------------------------------------------------------------- 计时
+DEPLOY_T0=$(date +%s)
+STEP_T0=$DEPLOY_T0
+
+# 秒数转 "1h23m45s" / "3m45s" / "45s"
+fmt_dur() {
+  local s=$1
+  [ "$s" -lt 0 ] && s=0
+  if [ "$s" -ge 3600 ]; then
+    printf '%dh%02dm%02ds' $((s/3600)) $((s%3600/60)) $((s%60))
+  elif [ "$s" -ge 60 ]; then
+    printf '%dm%02ds' $((s/60)) $((s%60))
+  else
+    printf '%ds' "$s"
+  fi
+}
+
+step() {
+  local now elapsed
+  now=$(date +%s)
+  # 非第一步时，汇报上一步耗时
+  if [ "$STEP_T0" != "$DEPLOY_T0" ]; then
+    elapsed=$((now-STEP_T0))
+    printf '  \033[2m（上一步 %s）\033[0m\n' "$(fmt_dur "$elapsed")"
+  fi
+  STEP_T0=$now
+  echo
+  c_b "==== $* ===="
+  printf '  \033[2m累计 %s\033[0m\n' "$(fmt_dur $((now-DEPLOY_T0)))"
+}
 
 # ---------------------------------------------------------------- 存储决策
 step "0/9 环境与存储决策"
@@ -325,20 +355,59 @@ fi
 df -BG /workspace /opt 2>/dev/null | sed 's/^/  /'
 
 echo
-c_b "──── 隧道状态 ────"
+c_b "──── 隧道 ────"
 export PATH="/root/.local/bin:$PATH"
+
+TUNNEL_URL=""
 if command -v rc-tunnel >/dev/null 2>&1; then
-  rc-tunnel status 2>&1 | sed 's/^/  /' || true
-  echo
-  c_y "  未开则执行： /workspace/tunnel.sh start"
+  # 已经有 active 隧道就直接复用，不重开（重开会换域名）
+  EXIST=$(rc-tunnel status 2>&1 || true)
+  if echo "$EXIST" | grep -q 'status:[[:space:]]*active' || echo "$EXIST" | grep -q 'Status:[[:space:]]*active'; then
+    c_g "  已有活动隧道，直接复用"
+    echo "$EXIST" | grep -E 'URL:|Status:|Local port:' | sed 's/^/  /'
+    TUNNEL_URL=$(echo "$EXIST" | grep -oE 'https://[^ ]+' | head -1)
+  else
+    # 僵尸 frpc：进程在但 broker 无隧道，必须先 stop
+    if echo "$EXIST" | grep -q 'broker has no active tunnel'; then
+      c_y "  清理僵尸 frpc ..."
+      rc-tunnel stop >/dev/null 2>&1 || true
+      sleep 2
+    fi
+    c_y "  开隧道 ..."
+    rc-tunnel expose --port 8188 2>&1 | sed 's/^/  /' || \
+      rc-tunnel expose -port 8188 2>&1 | sed 's/^/  /' || true
+    sleep 3
+    OUT=$(rc-tunnel status 2>&1 || true)
+    echo "$OUT" | grep -E 'URL:|Status:|Local port:' | sed 's/^/  /'
+    TUNNEL_URL=$(echo "$OUT" | grep -oE 'https://[^ ]+' | head -1)
+  fi
 else
-  c_r "  rc-tunnel 未安装（见 8/9 步骤的输出）"
+  c_r "  rc-tunnel 未安装（见 8/9 步骤）"
 fi
 
 echo
-c_y "  下一步："
-c_y "    1) 上传 /workspace/dsh_console_h3/{__init__.py,ui.html}（若尚未）"
-c_y "    2) /workspace/tunnel.sh start"
-c_y "    3) 浏览器 <域名>/dsh"
+c_b "════════ 完成 ════════"
 echo
+if [ -n "$TUNNEL_URL" ]; then
+  c_g "  工作台 : $TUNNEL_URL/dsh"
+  c_g "  ComfyUI: $TUNNEL_URL"
+else
+  c_y "  隧道未就绪，稍后执行： /workspace/tunnel.sh start"
+fi
+echo
+echo "  本地   : http://127.0.0.1:8188/dsh"
+echo "  日志   : tail -f $LOG"
+echo "  启停   : /workspace/h3ctl.sh start|stop|restart|status"
+echo "  隧道   : /workspace/tunnel.sh start|stop|url"
+echo
+
+# ---------------------------------------------------------------- 总耗时
+TOTAL=$(( $(date +%s) - DEPLOY_T0 ))
+echo "  ────────────────────────────"
+printf '  \033[1;36m总耗时 : %s\033[0m\n' "$(fmt_dur "$TOTAL")"
+echo "  ────────────────────────────"
+echo
+# 顺手把耗时写进日志，方便以后比对
+echo "[deploy] $(date '+%F %T') 完成，总耗时 $(fmt_dur "$TOTAL")（$MODE 模式）" >> "$LOG" 2>/dev/null || true
+
 c_g "部署完成"
