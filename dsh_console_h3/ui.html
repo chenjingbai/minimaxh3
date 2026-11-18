@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>H3 工作台</title>
+<style>
+  :root{
+    --bg:#0d0f14; --panel:#151922; --panel2:#1b202b; --line:#262d3a;
+    --tx:#e6ebf2; --tx2:#8b97a8; --acc:#4f8cff; --ok:#2fbf71;
+    --warn:#f0a020; --err:#e5484d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);
+       font:14px/1.55 -apple-system,"Segoe UI","Noto Sans SC",sans-serif}
+  button,input,select,textarea{font:inherit;color:inherit}
+  .wrap{max-width:1180px;margin:0 auto;padding:14px 16px 60px}
+
+  /* 顶部硬件条 */
+  .hw{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;
+      position:sticky;top:0;z-index:20;background:var(--bg);padding:8px 0 10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 11px}
+  .card .k{font-size:11px;color:var(--tx2);letter-spacing:.3px}
+  .card .v{font-size:15px;font-weight:600;margin-top:2px;font-variant-numeric:tabular-nums}
+  .bar{height:4px;background:#232a36;border-radius:3px;margin-top:6px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .4s}
+  .bar i.warn{background:var(--warn)} .bar i.err{background:var(--err)}
+
+  .cols{display:grid;grid-template-columns:400px 1fr;gap:14px;margin-top:6px}
+  @media(max-width:900px){.cols{grid-template-columns:1fr}}
+
+  .sec{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 13px;margin-bottom:12px}
+  .sec h3{margin:0 0 10px;font-size:13px;color:var(--tx2);font-weight:600;
+          letter-spacing:.5px;text-transform:uppercase}
+
+  label{display:block;font-size:12px;color:var(--tx2);margin:9px 0 4px}
+  input[type=text],input[type=number],select,textarea{
+    width:100%;background:var(--panel2);border:1px solid var(--line);
+    border-radius:7px;padding:7px 9px;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--acc)}
+  textarea{resize:vertical;min-height:88px;font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px}
+
+  .drop{border:1.5px dashed #33405a;border-radius:9px;padding:16px 12px;text-align:center;
+        color:var(--tx2);cursor:pointer;font-size:12.5px;transition:.15s}
+  .drop:hover,.drop.over{border-color:var(--acc);background:#4f8cff0d;color:var(--tx)}
+  .thumb{margin-top:9px;display:none}
+  .thumb img{width:100%;border-radius:8px;display:block;border:1px solid var(--line)}
+  .meta{font-size:11.5px;color:var(--tx2);margin-top:5px;display:flex;justify-content:space-between;gap:8px}
+  .meta b{color:var(--tx)}
+
+  .chk{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:12.5px;color:var(--tx2)}
+  .chk input{width:15px;height:15px;accent-color:var(--acc)}
+
+  .btn{width:100%;padding:10px;border:0;border-radius:8px;background:var(--acc);
+       color:#fff;font-weight:600;cursor:pointer;margin-top:12px}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.ghost{background:var(--panel2);border:1px solid var(--line);color:var(--tx);font-weight:500}
+
+  .est{margin-top:9px;font-size:12px;color:var(--tx2);
+       background:var(--panel2);border-radius:7px;padding:7px 9px;line-height:1.6}
+  .est b{color:var(--tx)}
+
+  /* 任务列表 */
+  .job{background:var(--panel2);border:1px solid var(--line);border-radius:9px;
+       padding:10px 12px;margin-bottom:9px}
+  .job .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .tag{font-size:11px;padding:2px 7px;border-radius:5px;font-weight:600;white-space:nowrap}
+  .t-queued{background:#4f8cff1f;color:#8fb4ff}
+  .t-running{background:#f0a0201f;color:#ffc45c}
+  .t-done{background:#2fbf711f;color:#5fd99a}
+  .t-error{background:#e5484d1f;color:#ff8b8f}
+  .t-cancelled,.t-interrupted{background:#5b6577 1f;background:#5b657733;color:#9aa7b8}
+  .job .sub{font-size:11.5px;color:var(--tx2);margin-top:4px;
+            display:flex;gap:12px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+  .job .pbar{height:3px;background:#232a36;border-radius:2px;margin-top:7px;overflow:hidden}
+  .job .pbar i{display:block;height:100%;width:0;background:var(--acc);transition:width .5s}
+  .job video,.job img.thumb2{width:100%;margin-top:9px;border-radius:7px;display:block;background:#000}
+  .acts{display:flex;gap:7px;margin-top:8px}
+  .acts button{flex:1;padding:5px;font-size:12px;border-radius:6px;cursor:pointer;
+               background:var(--panel);border:1px solid var(--line);color:var(--tx2)}
+  .acts button:hover{color:var(--tx);border-color:var(--acc)}
+  .errbox{margin-top:7px;font-size:11.5px;color:#ff9a9e;background:#e5484d10;
+          border-left:2px solid var(--err);padding:6px 9px;border-radius:4px;
+          white-space:pre-wrap;max-height:130px;overflow:auto;font-family:ui-monospace,monospace}
+  .empty{color:var(--tx2);font-size:12.5px;text-align:center;padding:22px 0}
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+         background:#1f2733;border:1px solid var(--line);color:var(--tx);
+         padding:9px 16px;border-radius:8px;font-size:13px;opacity:0;
+         pointer-events:none;transition:.25s;z-index:99;max-width:90vw}
+  .toast.on{opacity:1}
+  .warnline{font-size:11.5px;color:#ffc45c;margin-top:7px;display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hw" id="hw"></div>
+
+  <div class="cols">
+    <!-- 左：参数 -->
+    <div>
+      <div class="sec">
+        <h3>首帧图</h3>
+        <div class="drop" id="drop">点击或拖入图片</div>
+        <input type="file" id="file" accept="image/*" style="display:none">
+        <div class="thumb" id="thumbWrap">
+          <img id="thumb" alt="">
+          <div class="meta"><span id="thumbName"></span><span id="thumbSize"></span></div>
+          <div class="warnline" id="ratioWarn"></div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3>引擎</h3>
+        <select id="engine">
+          <option value="hyperflow">HyperFlow Flash（6 步，快）</option>
+          <option value="native">原生 H3（8 步 + turbo LoRA，画质优先）</option>
+        </select>
+        <label id="loraLabel" style="display:none">turbo LoRA</label>
+        <select id="lora" style="display:none"></select>
+      </div>
+
+      <div class="sec">
+        <h3>规格</h3>
+        <div class="row">
+          <div>
+            <label>尺寸档</label>
+            <select id="tier">
+              <option value="small">小</option>
+              <option value="mid" selected>中</option>
+              <option value="big">大</option>
+            </select>
+          </div>
+          <div>
+            <label>方向</label>
+            <select id="orientation">
+              <option value="landscape">横版</option>
+              <option value="portrait">竖版</option>
+            </select>
+          </div>
+        </div>
+        <div class="est" id="resActual" style="margin-top:8px"></div>
+        <div class="row3">
+          <div>
+            <label>时长</label>
+            <select id="seconds">
+              <option value="5">5 秒</option>
+              <option value="10" selected>10 秒</option>
+              <option value="15">15 秒</option>
+              <option value="30">30 秒（2 段）</option>
+              <option value="45">45 秒（3 段）</option>
+              <option value="60">60 秒（4 段）</option>
+              <option value="90">90 秒（6 段）</option>
+              <option value="120">120 秒（8 段）</option>
+            </select>
+          </div>
+          <div>
+            <label>步数</label>
+            <input type="number" id="steps" value="6" min="1" max="60">
+          </div>
+          <div>
+            <label>种子</label>
+            <input type="number" id="seed" value="42">
+          </div>
+        </div>
+
+        <div style="display:flex;gap:5px;margin-top:7px">
+          <button class="btn ghost" data-steps="3" style="margin:0;padding:5px;font-size:11.5px">3 步 最快</button>
+          <button class="btn ghost" data-steps="4" style="margin:0;padding:5px;font-size:11.5px">4 步 快</button>
+          <button class="btn ghost" data-steps="6" style="margin:0;padding:5px;font-size:11.5px">6 步 推荐</button>
+          <button class="btn ghost" data-steps="8" style="margin:0;padding:5px;font-size:11.5px">8 步 画质</button>
+        </div>
+        <div id="stepWarn" style="display:none;font-size:11px;color:#ffc45c;
+             background:#f0a02012;border-radius:6px;padding:6px 8px;margin-top:6px"></div>
+
+        <div id="segInfo" style="display:none;font-size:11.5px;color:#ffc45c;
+             background:#f0a02012;border-radius:7px;padding:7px 9px;margin-top:8px"></div>
+        <div class="row">
+          <div>
+            <label>模型</label>
+            <select id="unet"></select>
+          </div>
+          <div>
+            <label>VAE</label>
+            <select id="vae"></select>
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>生成时超分</label>
+            <select id="upscale">
+              <option value="0">不超分</option>
+              <option value="2">2x（推荐）</option>
+              <option value="4">4x</option>
+            </select>
+          </div>
+          <div>
+            <label>超分模型</label>
+            <select id="upscaleModel"></select>
+          </div>
+        </div>
+        <div class="est" id="est"></div>
+      </div>
+
+      <div class="sec">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          <span>提示词</span>
+          <span style="display:flex;gap:6px">
+            <button class="btn ghost" id="btnStruct" style="width:auto;margin:0;padding:4px 10px;font-size:11.5px">结构化</button>
+            <button class="btn ghost" id="btnRaw" style="width:auto;margin:0;padding:4px 10px;font-size:11.5px">原文</button>
+          </span>
+        </h3>
+
+        <!-- 结构化编辑 -->
+        <div id="structBox">
+          <label>整体场景（先写这一段）</label>
+          <textarea id="fScene" style="min-height:56px"
+            placeholder="A dim workshop at dusk, warm light through the window, dust drifting in the air."></textarea>
+
+          <label>分镜（每行一个镜头，从 Shot 1 起）</label>
+          <div id="shots"></div>
+          <button class="btn ghost" id="addShot"
+            style="width:100%;margin-top:6px;padding:5px;font-size:12px">+ 添加镜头</button>
+
+          <label>音效 / 环境声（overall_soundscape，1–4 句）</label>
+          <textarea id="fSfx" style="min-height:48px"
+            placeholder="Steady rain on glass, a low room hum, distant thunder rolling closer."></textarea>
+
+          <label>配乐（non_diegetic_music，1–3 句；没有就留空）</label>
+          <textarea id="fMusic" style="min-height:40px"
+            placeholder="Slow sustained strings, rising tension toward the end."></textarea>
+
+          <label>台词（绑定到镜头后，只在该镜头内说）</label>
+          <div id="dialogs"></div>
+          <button class="btn ghost" id="addDialog"
+            style="width:100%;margin-top:6px;padding:5px;font-size:12px">+ 添加台词</button>
+
+          <div class="chk" style="margin-top:10px;padding:7px 9px;background:var(--panel);
+               border-radius:7px">
+            <input type="checkbox" id="noDialogue">
+            <span><b>全程无对白</b>（只做动作，不加人声）</span>
+          </div>
+        </div>
+
+        <!-- 原文 -->
+        <div id="rawBox" style="display:none">
+          <textarea id="prompt" placeholder="直接粘贴完整提示词" style="min-height:200px"></textarea>
+        </div>
+
+        <div class="est" id="promptPreview" style="margin-top:9px;max-height:170px;overflow:auto"></div>
+
+        <div class="meta">
+          <span id="pLen">0 字</span>
+          <span class="chk" style="margin:0"><input type="checkbox" id="zhDialogue">台词用中文</span>
+        </div>
+        <button class="btn" id="go">开始生成</button>
+        <button class="btn ghost" id="btnAB" style="margin-top:6px">A/B 对比（多种子）</button>
+
+        <div id="abBox" style="display:none;margin-top:9px;background:var(--panel2);
+             border-radius:8px;padding:9px">
+          <label style="margin-top:0">种子列表（逗号分隔，最多 6 个）</label>
+          <input type="text" id="abSeeds" value="42, 1234, 7777, 20250101"
+                 placeholder="42, 1234, 7777">
+          <div style="font-size:11.5px;color:var(--tx2);margin-top:6px">
+            同参数不同种子各跑一次，成片按 AB 分组显示，可并排比较。
+          </div>
+          <button class="btn" id="btnABGo" style="margin-top:8px">提交对比</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右：任务 -->
+    <div>
+      <div class="sec">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          <span>任务</span>
+          <button class="btn ghost" id="refresh" style="width:auto;margin:0;padding:4px 12px;font-size:12px">刷新</button>
+        </h3>
+
+        <div id="concatBar" style="display:none;align-items:center;gap:8px;
+             background:#4f8cff14;border:1px solid var(--acc);border-radius:8px;
+             padding:7px 10px;margin-bottom:8px">
+          <span id="concatCount" style="font-size:12px;color:var(--acc);flex:1">已选 0 段</span>
+          <button class="btn ghost" id="btnConcat" style="width:auto;margin:0;padding:4px 10px;font-size:11.5px">拼接成片</button>
+          <button class="btn ghost" id="btnConcatClear" style="width:auto;margin:0;padding:4px 8px;font-size:11.5px">清空</button>
+        </div>
+
+        <div id="jobs"><div class="empty">暂无任务</div></div>
+      </div>
+
+      <div class="sec">
+        <h3 style="display:flex;justify-content:space-between;align-items:center">
+          <span>文件管理</span>
+          <button class="btn ghost" id="fmUp" style="width:auto;margin:0;padding:4px 10px;font-size:11.5px">↑ 上级</button>
+        </h3>
+
+        <div class="row" style="margin-bottom:8px">
+          <div>
+            <select id="fmRoot">
+              <option value="comfy_output">ComfyUI 输出</option>
+              <option value="workspace_output">工作台副本</option>
+              <option value="h3_models">H3 模型</option>
+            </select>
+          </div>
+          <div style="display:flex;align-items:center;font-size:11.5px;color:var(--tx2)">
+            <span id="fmPath" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">/</span>
+          </div>
+        </div>
+
+        <div class="meta" style="margin-bottom:6px">
+          <span id="fmStat">—</span>
+          <span style="display:flex;gap:6px">
+            <button class="btn ghost" id="fmSelAll" style="width:auto;margin:0;padding:3px 9px;font-size:11px">全选</button>
+            <button class="btn ghost" id="fmDel" style="width:auto;margin:0;padding:3px 9px;font-size:11px;color:#ff8b8f">删除选中</button>
+          </span>
+        </div>
+
+        <div id="fmList" style="max-height:420px;overflow:auto"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmtGB = b => (b/1073741824).toFixed(1) + ' GB';
+const fmtPct = (a,b) => b ? Math.round(a/b*100) : 0;
+
+let OPT = null, FIRST = null, pollTimer = null, TM_LORA = '';
+
+function toast(msg, ms=2400){
+  const t = $('#toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('on'), ms);
+}
+
+async function jget(u){ const r = await fetch(u); return r.json(); }
+async function jpost(u, body){
+  const r = await fetch(u, {method:'POST', headers:{'Content-Type':'application/json'},
+                            body: body===undefined?'{}':JSON.stringify(body)});
+  return r.json();
+}
+
+/* ---------- 硬件条 ---------- */
+async function hw(){
+  let d;
+  try { d = await jget('/dsh/api/status'); } catch(e){ return; }
+  const items = [];
+  if (d.vram && d.vram.total){
+    const used = d.vram.total - d.vram.free;
+    items.push({k:'显存 ' + (d.vram.name||'').replace(/AMD Radeon /,''), v:fmtGB(used)+' / '+fmtGB(d.vram.total),
+                p:fmtPct(used,d.vram.total)});
+  }
+  if (d.ram && d.ram.used){
+    items.push({k:'内存(cgroup)', v:fmtGB(d.ram.used)+' / '+(d.ram.total?fmtGB(d.ram.total):'—'),
+                p:d.ram.total?fmtPct(d.ram.used,d.ram.total):0});
+  }
+  if (d.disk && d.disk.total){
+    items.push({k:'Workspace', v:fmtGB(d.disk.used)+' / '+fmtGB(d.disk.total),
+                p:fmtPct(d.disk.used,d.disk.total)});
+  }
+  if (d.cpu){
+    items.push({k:'CPU 负载', v:(d.cpu.load||0).toFixed(2)+' / '+d.cpu.cores+' 核', p:0});
+  }
+  items.push({k:'队列', v:(d.queue||0)+' 个', p:0});
+
+  $('#hw').innerHTML = items.map(i => {
+    const cls = i.p > 92 ? 'err' : (i.p > 80 ? 'warn' : '');
+    return `<div class="card"><div class="k">${i.k}</div><div class="v">${i.v}</div>
+      ${i.p?`<div class="bar"><i class="${cls}" style="width:${i.p}%"></i></div>`:''}</div>`;
+  }).join('');
+}
+
+/* ---------- 选项 ---------- */
+async function loadOptions(){
+  const ctl = new AbortController();
+  const tid = setTimeout(() => ctl.abort(), 20000);
+  let r;
+  try {
+    r = await fetch('/dsh/api/options', {signal: ctl.signal});
+  } finally {
+    clearTimeout(tid);
+  }
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  OPT = await r.json();
+  const fill = (sel, arr, prefer) => {
+    const el = $(sel); el.innerHTML = '';
+    (arr||[]).forEach(x => {
+      const o = document.createElement('option'); o.value = x; o.textContent = x;
+      el.appendChild(o);
+    });
+    if (prefer){
+      const hit = (arr||[]).find(x => x.includes(prefer));
+      if (hit) el.value = hit;
+    }
+  };
+  const unets = (OPT.unet||[]);
+  const fillUnet = () => {
+    const eng = $('#engine').value;
+    const list = unets.filter(n => eng === 'hyperflow' ? n.includes('hyperflow') : (!n.includes('hyperflow')));
+    fill('#unet', list, eng === 'hyperflow' ? '14b-int8' : 'fl2va_pruned_int8');
+  };
+  fillUnet();
+  fill('#lora', OPT.lora, '8step');
+  fill('#vae', OPT.vae, 'video_vae_int8');
+  fill('#upscaleModel', OPT.upscale_models || [], 'UltraSharp');
+
+  // TaoMate 3 步 LoRA
+  const tmLoras = (OPT.lora || []).filter(n => /taomate/i.test(n));
+  TM_LORA = tmLoras[0] || '';
+
+  if (!(OPT.upscale_models || []).length){
+    const el = $('#upscale');
+    el.innerHTML = '<option value="0">不超分（未装超分模型）</option>';
+    el.disabled = true;
+  }
+
+  $('#engine').addEventListener('change', () => {
+    const hf = $('#engine').value === 'hyperflow';
+    fillUnet();
+    $('#steps').value = hf ? 6 : 8;
+    $('#loraLabel').style.display = hf ? 'none' : 'block';
+    $('#lora').style.display = hf ? 'none' : 'block';
+    updateEst();
+  });
+
+  if (!OPT.nodes || !OPT.nodes.H3){
+    toast('未检测到 MiniMaxH3 节点，工作台仍可用但无法提交', 5000);
+  }
+  updateEst();
+}
+
+/* ---------- 上传 ---------- */
+async function upload(file){
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('file', file); fd.append('name', file.name);
+  const r = await fetch('/dsh/api/upload', {method:'POST', body: fd});
+  const d = await r.json();
+  if (!d.ok){ toast('上传失败：' + (d.error||'')); return; }
+  FIRST = d;
+  $('#thumb').src = URL.createObjectURL(file);
+  $('#thumbWrap').style.display = 'block';
+  $('#thumbName').textContent = file.name;
+  $('#thumbSize').textContent = d.width && d.height ? `${d.width}×${d.height}` : '';
+  checkRatio();
+}
+
+function checkRatio(){
+  const w = FIRST && FIRST.width, h = FIRST && FIRST.height;
+  if (!w || !h){ $('#ratioWarn').style.display='none'; return; }
+  const tw = targetSize();
+  const tRatio = tw.w / tw.h, iRatio = w / h;
+  const diff = Math.abs(iRatio - tRatio) / tRatio;
+  const el = $('#ratioWarn');
+  if (diff > 0.15){
+    el.style.display = 'block';
+    el.textContent = `⚠ 图比例 ${iRatio.toFixed(2)} 与输出 ${tRatio.toFixed(2)} 差 ${(diff*100).toFixed(0)}%，会被裁切`;
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function targetSize(){
+  const t = OPT ? OPT.tiers : {small:[640,384],mid:[960,544],big:[1344,768]};
+  let [w,h] = t[$('#tier').value] || [960,544];
+  if ($('#orientation').value === 'portrait') [w,h] = [h,w];
+  return {w, h};
+}
+
+/* ---------- 预估 ---------- */
+function updateEst(){
+  const {w,h} = targetSize();
+  const el = $('#resActual');
+  if (el){
+    const orient = $('#orientation').value === 'portrait' ? '竖版' : '横版';
+    el.innerHTML = `实际输出 <b>${w}×${h}</b> (${orient})`;
+  }
+  const totalSec = parseFloat($('#seconds').value);
+  const steps = parseInt($('#steps').value) || 6;
+  const segSec = Math.min(totalSec, 15);
+  const nSeg = Math.max(1, Math.ceil(totalSec / 15 - 1e-9));
+
+  const frames = framesFor(segSec);
+  const px = w*h;
+  const perSeg = 156 * Math.pow(px/(848*480), 1.3) * (frames/121) * (steps/4) * 1.8;
+  const est = perSeg * nSeg + (nSeg > 1 ? 25 * nSeg : 0);
+
+  const info = $('#segInfo');
+  if (info){
+    if (nSeg > 1){
+      info.style.display = 'block';
+      info.innerHTML = `长片模式：拆成 <b>${nSeg}</b> 段 × 约 <b>${segSec}</b> 秒（${frames} 帧）`
+        + `<br>段间用末帧接续，全部完成后自动拼接`;
+    } else {
+      info.style.display = 'none';
+    }
+  }
+
+  $('#est').innerHTML =
+    `输出 <b>${w}×${h}</b> · 共 <b>${nSeg}</b> 段 × <b>${frames}</b> 帧 (${segSec.toFixed(1)}s) · <b>${steps}</b> 步`
+    + `<br>粗估 <b>${Math.round(est)}</b> 秒（约 ${(est/60).toFixed(0)} 分钟，仅参考，实测偏差 ±40%）`;
+}
+
+function framesFor(sec){
+  const target = Math.max(5, Math.round(sec * 24));
+  return Math.min(target + (5 - target % 17) % 17, 362);
+}
+
+function updateStepWarn(){
+  const el = $('#stepWarn');
+  if (!el) return;
+  const s = parseInt($('#steps').value) || 6;
+  const eng = $('#engine').value;
+  let msg = '', color = '#ffc45c', bg = '#f0a02012';
+
+  if (s <= 3){
+    if (TM_LORA){
+      msg = `3 步：走 TaoMate 蒸馏（${TM_LORA}）。最快档，画质最低，适合试构图和数字人风格。`;
+      color = '#8fb4ff'; bg = '#4f8cff12';
+    } else {
+      msg = '3 步：未检测到 TaoMate LoRA，普通 turbo LoRA 在 3 步上画质会崩。'
+          + '先跑 setup 装 TaoMate 节点和 LoRA，或改用 6/8 步。';
+      color = '#ff8b8f'; bg = '#e5484d12';
+    }
+  } else if (s === 4){
+    msg = '4 步：快 4.1×，但实测宽景人脸检验 3 个种子全不过。静态镜头、慢摇、正脸可用。';
+  } else if (s === 5){
+    msg = '5 步：介于 4 和 6 之间，未实测。';
+  } else if (s === 6){
+    msg = eng === 'hyperflow'
+      ? '6 步：HyperFlow 默认档，速度与画质的平衡点。'
+      : '6 步：原生 H3 + turbo LoRA，比 8 步快但宽景人脸通过率下降。';
+  } else if (s >= 8){
+    msg = eng === 'hyperflow'
+      ? '8 步：HyperFlow 画质档（4 最快 / 6 默认 / 8 画质）。'
+      : '8 步：原生 H3 + turbo LoRA 推荐档，通过人脸检验。';
+  }
+  el.style.display = msg ? 'block' : 'none';
+  el.style.color = color;
+  el.style.background = bg;
+  el.textContent = msg;
+}
+
+/* ---------- 提交 ---------- */
+async function submit(){
+  if (!FIRST){ toast('先上传首帧图'); return; }
+  const text = currentPrompt();
+  if (!text || !text.trim()){ toast('提示词为空'); return; }
+  const body = collectBody();
+  if (body.engine === 'native' && !body.lora){ toast('没有 LoRA 文件'); return; }
+  const r = await jpost('/dsh/api/submit', body);
+  if (!r.ok){ toast('提交失败：' + (r.error||'')); return; }
+  toast('已加入队列');
+  refreshJobs();
+}
+
+/* ---------- 任务列表 ---------- */
+function dur(s){
+  s = Math.round(s||0);
+  if (s < 60) return s + 's';
+  return Math.floor(s/60) + 'm' + String(s%60).padStart(2,'0') + 's';
+}
+
+/* ---------- 任务列表：增量更新，绝不重建 video 元素 ---------- */
+
+const JOB_NODES = new Map();   // job_id -> DOM 节点
+const JOB_SIG = new Map();     // job_id -> 上次渲染的状态签名
+const SEL_JOBS = new Set();    // 拼接选中的 job id
+const JOB_DATA = new Map();    // job_id -> 最新数据
+
+function jobSig(j){
+  const p = j.progress || {};
+  return [j.status, j.elapsed||0, p.value, p.max, (j.outputs||[]).length,
+          (j.error||'').length, j.ab_group||'', j.stage||''].join('|');
+}
+
+function buildJobCard(j){
+  const el = document.createElement('div');
+  el.className = 'job';
+  el.dataset.id = j.id;
+
+  const top = document.createElement('div'); top.className = 'top';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.style.cssText = 'width:14px;height:14px;accent-color:var(--acc);margin-right:6px;flex:none';
+  cb.onchange = () => {
+    if (cb.checked) SEL_JOBS.add(j.id); else SEL_JOBS.delete(j.id);
+    updateConcatBar();
+  };
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:12.5px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1';
+  title.textContent = j.prompt_preview || '';
+  const tag = document.createElement('span'); tag.className = 'tag';
+  top.appendChild(cb); top.appendChild(title); top.appendChild(tag);
+
+  const sub = document.createElement('div'); sub.className = 'sub';
+  const stage = document.createElement('div'); stage.className = 'stage';
+  stage.style.cssText = 'font-size:11px;color:#ffc45c;margin-top:3px;display:none';
+  const pbar = document.createElement('div'); pbar.className = 'pbar';
+  pbar.innerHTML = '<i></i>';
+  pbar.style.display = 'none';
+
+  const mediaWrap = document.createElement('div'); mediaWrap.className = 'media-wrap';
+  const err = document.createElement('div'); err.className = 'errbox'; err.style.display = 'none';
+
+  const acts = document.createElement('div'); acts.className = 'acts';
+
+  el.append(top, sub, stage, pbar, mediaWrap, err, acts);
+  return el;
+}
+
+function updateJobCard(el, j){
+  const p = j.progress || {};
+  const pct = (p.value!=null && p.max) ? Math.round(p.value/p.max*100) : 0;
+  const LABEL = {queued:'排队', running:'运行中', done:'完成', error:'失败',
+                 cancelled:'已取消', interrupted:'已中断'};
+
+  const tag = el.querySelector('.tag');
+  tag.className = 'tag t-' + j.status;
+  tag.textContent = LABEL[j.status] || j.status;
+
+  const sub = el.querySelector('.sub');
+  sub.innerHTML =
+    `<span>${j.width}×${j.height}</span>` +
+    (j.segments_total > 1
+      ? `<span>${j.segments_total}段 · 共${j.total_seconds||'?'}s</span>`
+      : `<span>${j.length}帧</span>`) +
+    (j.steps ? `<span>${j.steps}步</span>` : '') +
+    `<span>${j.engine==='hyperflow'?'HF':(j.engine==='upscale'?'超分':(j.engine==='concat'?'拼接':'原生'))}</span>` +
+    (j.ab_group ? `<span style="color:var(--acc)">AB:${escapeHtml(j.ab_group.slice(0,12))}</span>` : '') +
+    (j.upscale_scale > 1 ? `<span style="color:#5fd99a">${j.upscale_scale}x</span>` : '') +
+    (j.elapsed ? `<span>耗时 ${dur(j.elapsed)}</span>` : '');
+
+  const stageEl = el.querySelector('.stage');
+  if (stageEl){
+    if (j.stage && j.status === 'running'){ stageEl.style.display='block'; stageEl.textContent = j.stage; }
+    else stageEl.style.display = 'none';
+  }
+
+  const pbar = el.querySelector('.pbar');
+  if (j.status === 'running'){
+    pbar.style.display = 'block';
+    pbar.firstChild.style.width = pct + '%';
+  } else {
+    pbar.style.display = 'none';
+  }
+
+  // 媒体只在数量变化时补建，已存在的 video 一律不碰
+  const mw = el.querySelector('.media-wrap');
+  const want = (j.outputs||[]).length;
+  const have = mw.childElementCount;
+  if (want > have){
+    (j.outputs||[]).slice(have).forEach(o => {
+      const isVideo = ['mp4','webm','mov','mkv'].includes(o.kind);
+      let n;
+      if (isVideo){
+        n = document.createElement('video');
+        n.src = o.url; n.controls = true; n.playsInline = true;
+        n.preload = 'metadata';
+        n.style.cssText = 'width:100%;border-radius:7px;display:block;background:#000;margin-top:9px';
+      } else {
+        n = document.createElement('img');
+        n.src = o.url; n.className = 'thumb2';
+      }
+      mw.appendChild(n);
+    });
+  }
+
+  const errBox = el.querySelector('.errbox');
+  if (j.error){
+    errBox.style.display = 'block';
+    errBox.textContent = j.error.slice(0, 600);
+  } else {
+    errBox.style.display = 'none';
+  }
+
+  const acts = el.querySelector('.acts');
+  acts.innerHTML = '';
+  if (j.status === 'running' || j.status === 'queued'){
+    const b = document.createElement('button');
+    b.textContent = '取消';
+    b.onclick = () => cancelJob(j.id);
+    acts.appendChild(b);
+  }
+  // 对成片加超分按钮
+  const vids = (j.outputs||[]).filter(o => ['mp4','webm','mov','mkv'].includes(o.kind));
+  if (j.status === 'done' && vids.length && j.engine !== 'upscale'){
+    [2, 4].forEach(sc => {
+      const b = document.createElement('button');
+      b.textContent = `超分 ${sc}x`;
+      b.onclick = () => upscaleVideo(vids[0].name, sc);
+      acts.appendChild(b);
+    });
+  }
+  const d = document.createElement('button');
+  d.textContent = '删除';
+  d.onclick = () => delJob(j.id);
+  acts.appendChild(d);
+}
+
+async function refreshJobs(){
+  let d;
+  try { d = await jget('/dsh/api/jobs'); } catch(e){ return; }
+  const list = d.jobs || [];
+  const box = $('#jobs');
+
+  if (!list.length){
+    if (!box.querySelector('.empty')){
+      box.innerHTML = '<div class="empty">暂无任务</div>';
+      JOB_NODES.clear(); JOB_SIG.clear();
+    }
+    return;
+  }
+  const blank = box.querySelector('.empty');
+  if (blank) blank.remove();
+
+  const seen = new Set();
+  list.forEach(j => {
+    seen.add(j.id);
+    JOB_DATA.set(j.id, j);
+    let el = JOB_NODES.get(j.id);
+    if (!el){
+      el = buildJobCard(j);
+      JOB_NODES.set(j.id, el);
+      box.insertBefore(el, box.firstChild);
+    }
+    const sig = jobSig(j);
+    if (JOB_SIG.get(j.id) !== sig){
+      updateJobCard(el, j);
+      JOB_SIG.set(j.id, sig);
+    }
+  });
+
+  // 移除已删除的任务
+  [...JOB_NODES.keys()].forEach(id => {
+    if (!seen.has(id)){
+      JOB_NODES.get(id)?.remove();
+      JOB_NODES.delete(id);
+      JOB_SIG.delete(id);
+      JOB_DATA.delete(id);
+      SEL_JOBS.delete(id);
+    }
+  });
+  updateConcatBar();
+
+  // 按服务端顺序重排（最新在前）
+  const order = list.map(j => j.id);
+  order.forEach((id, i) => {
+    const el = JOB_NODES.get(id);
+    if (el && box.children[i] !== el) box.insertBefore(el, box.children[i] || null);
+  });
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+async function cancelJob(id){ await jpost(`/dsh/api/jobs/${id}/cancel`); refreshJobs(); }
+async function delJob(id){ await jpost(`/dsh/api/jobs/${id}/delete`); refreshJobs(); }
+
+/* ---------- 超分 / 拼接 / A-B ---------- */
+
+async function upscaleVideo(name, scale){
+  const model = $('#upscaleModel') ? $('#upscaleModel').value : '';
+  if (!model){ toast('先在「超分模型」里选一个（没有就去下载）', 4000); return; }
+  const r = await jpost('/dsh/api/upscale', {name, scale, model});
+  if (!r.ok){ toast('提交失败：' + (r.error||'')); return; }
+  toast(`已提交 ${scale}x 超分`);
+  refreshJobs();
+}
+
+function updateConcatBar(){
+  const bar = $('#concatBar');
+  if (!bar) return;
+  const n = SEL_JOBS.size;
+  bar.style.display = n ? 'flex' : 'none';
+  const cnt = $('#concatCount');
+  if (cnt) cnt.textContent = `已选 ${n} 段`;
+}
+
+async function doConcat(){
+  const ids = [...SEL_JOBS];
+  if (ids.length < 2){ toast('至少选 2 段'); return; }
+
+  // 按任务创建时间顺序拼（服务端 jobs 顺序是最新在前，反转回来）
+  const names = [];
+  ids.map(id => JOB_DATA.get(id)).filter(Boolean)
+     .sort((a,b) => (a.created||0) - (b.created||0))
+     .forEach(j => {
+       const v = (j.outputs||[]).find(o => ['mp4','webm','mov','mkv'].includes(o.kind));
+       if (v) names.push(v.name);
+     });
+  if (names.length < 2){ toast('选中的任务里有视频的不足 2 个'); return; }
+
+  const r = await jpost('/dsh/api/concat', {names});
+  if (!r.ok){ toast('拼接失败：' + (r.error||'')); return; }
+  toast(r.warn || `已提交拼接 ${names.length} 段`, r.warn ? 5000 : 2400);
+  SEL_JOBS.clear();
+  updateConcatBar();
+  refreshJobs();
+}
+
+/* ---------- A/B 对比 ---------- */
+
+function toggleAB(){
+  const box = $('#abBox');
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+}
+
+async function submitAB(){
+  if (!FIRST){ toast('先上传首帧图'); return; }
+  const seeds = $('#abSeeds').value.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+  if (seeds.length < 2){ toast('至少填 2 个种子'); return; }
+  const group = 'ab' + Date.now().toString(36);
+  let ok = 0, err = '';
+  for (const sd of seeds.slice(0, 6)){
+    $('#seed').value = sd;
+    const body = collectBody();
+    body.ab_group = group;
+    const r = await jpost('/dsh/api/submit', body);
+    if (r.ok) ok++; else err = r.error || '失败';
+  }
+  toast(ok ? `已提交 ${ok} 个对比任务（组 ${group}）` : ('全部失败：' + err), 3500);
+  refreshJobs();
+}
+
+function collectBody(){
+  const eng = $('#engine').value;
+  const totalSec = parseFloat($('#seconds').value);
+  const body = {
+    engine: eng,
+    first_frame: FIRST.name,
+    prompt: currentPrompt(),
+    tier: $('#tier').value,
+    orientation: $('#orientation').value,
+    seconds: totalSec,
+    total_seconds: totalSec,
+    seg_seconds: 15,
+    steps: $('#steps').value,
+    seed: $('#seed').value,
+    unet: $('#unet').value,
+    vae_video: $('#vae').value,
+    vae_audio: (OPT.vae||[]).find(x=>x.includes('audio_vae')) || '',
+    clip: (OPT.clip||[]).find(x=>x.includes('nvfp4')) || (OPT.clip||[])[0] || '',
+    use_lora: eng === 'native',
+    lora: $('#lora').value,
+    upscale_scale: parseInt($('#upscale').value) || 0,
+    upscale_model: $('#upscaleModel').value || '',
+    taomate_lora: (parseInt($('#steps').value) || 6) <= 3 ? TM_LORA : '',
+    taomate_strength: 1.0,
+  };
+  return body;
+}
+
+/* ---------- 结构化提示词（按 H3 官方格式组装） ---------- */
+
+let SHOTS = [{tc:'', text:''}];
+let DIALOGS = [];
+
+function renderShots(){
+  $('#shots').innerHTML = SHOTS.map((s, i) => `
+    <div style="display:flex;gap:5px;margin-top:5px">
+      <input type="text" value="${esc(s.tc)}" placeholder="${i===0?'0.00s':'如 3.500'}"
+        style="width:82px;flex:none" oninput="SHOTS[${i}].tc=this.value;buildPrompt()">
+      <input type="text" value="${esc(s.text)}" placeholder="${i===0?'Shot 1 内容（只写画面/动作，别写台词）':'the camera cuts to ...'}"
+        oninput="SHOTS[${i}].text=this.value;buildPrompt()">
+      <button class="btn ghost" style="width:32px;flex:none;margin:0;padding:0"
+        onclick="SHOTS.splice(${i},1);renderShots();buildPrompt()">×</button>
+    </div>`).join('');
+}
+
+function renderDialogs(){
+  $('#dialogs').innerHTML = DIALOGS.map((d, i) => `
+    <div style="display:flex;gap:5px;margin-top:5px">
+      <select style="width:78px;flex:none" onchange="DIALOGS[${i}].shot=this.value;buildPrompt()">
+        <option value="" ${(d.shot===''||d.shot==null)?'selected':''}>不绑定</option>
+        ${SHOTS.map((_, si) => `<option value="${si+1}" ${String(d.shot)===String(si+1)?'selected':''}>镜${si+1}</option>`).join('')}
+      </select>
+      <input type="text" value="${esc(d.spk)}" placeholder="S1"
+        style="width:48px;flex:none" oninput="DIALOGS[${i}].spk=this.value;buildPrompt()">
+      <input type="text" value="${esc(d.act)}" placeholder="动作/语气"
+        style="width:96px;flex:none" oninput="DIALOGS[${i}].act=this.value;buildPrompt()">
+      <input type="text" value="${esc(d.line)}" placeholder="台词原文"
+        oninput="DIALOGS[${i}].line=this.value;buildPrompt()">
+      <button class="btn ghost" style="width:32px;flex:none;margin:0;padding:0"
+        onclick="DIALOGS.splice(${i},1);renderDialogs();buildPrompt()">×</button>
+    </div>`).join('');
+}
+
+function esc(s){
+  return String(s==null?'':s).replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+function buildPrompt(){
+  if ($('#rawBox').style.display !== 'none') return;   // 原文模式下不动
+  const scene = $('#fScene').value.trim();
+  const totalSec = parseFloat($('#seconds').value) || 5;
+  const lines = [];
+
+  if (scene) lines.push(scene, '');
+
+  const zh = $('#zhDialogue').checked;
+  // 台词按 shot 索引分组：d.shot = -1 表示不绑定（旧行为）
+  const byShot = {};
+  DIALOGS.filter(d => (d.line||'').trim()).forEach(d => {
+    const k = (d.shot == null || d.shot === '') ? -1 : parseInt(d.shot);
+    (byShot[k] = byShot[k] || []).push(d);
+  });
+
+  const fmtLine = d => {
+    const spk = (d.spk||'S1').trim();
+    const act = (d.act||'').trim();
+    const lang = zh ? '[Chinese] ' : '';
+    const after = d.after ? '然后' : '';
+    return `${act ? act + ' ' : ''}(${spk}) says <d>${lang}${d.line.trim()}</d>`;
+  };
+
+  SHOTS.forEach((s, i) => {
+    const body = (s.text||'').trim();
+    const own = byShot[i] || [];
+    if (!body && i > 0 && !own.length) return;
+
+    let head;
+    if (i === 0){
+      head = '[Shot 1] ' + (body || '');
+    } else {
+      const tc = (s.tc||'').trim();
+      const at = tc ? `At ${tc.padEnd(8,'0')}, ` : '';
+      head = `[Shot ${i+1}] ${at}${body}`;
+    }
+    // 台词紧跟在所属镜头后面
+    const tail = own.length ? ' ' + own.map(fmtLine).join(' ') : '';
+    lines.push(head + tail);
+  });
+
+  // 没绑定镜头的台词，放到最后（并标注时间，避免一开头就说话）
+  const free = byShot[-1] || [];
+  if (free.length){
+    const t = Math.max(0.8, Math.min(totalSec * 0.5, totalSec - 0.8)).toFixed(1);
+    lines.push(`At ${t}s ` + free.map(fmtLine).join(' '));
+  }
+
+  const sfx = $('#fSfx').value.trim();
+  const mus = $('#fMusic').value.trim();
+  const noTalk = $('#noDialogue') && $('#noDialogue').checked;
+  const hasLine = DIALOGS.some(d => (d.line||'').trim());
+
+  // 无对白模式：把两个音频字段都明确填满，并声明无人声。
+  // 官方指南：出现不需要的语音时，必须把这两个字段都明确填写。
+  if (noTalk){
+    lines.push('',
+      'overall_soundscape: ' + (sfx ||
+        'Natural ambient sound only. No human voice, no speaking, no narration, no vocalization of any kind. The subjects remain silent throughout.'),
+      'non_diegetic_music: ' + (mus || 'N/A'),
+      '',
+      'All characters are silent for the entire clip. No dialogue, no lip movement for speech.');
+  } else {
+    lines.push('', 'overall_soundscape: ' + (sfx || 'N/A'));
+    lines.push('non_diegetic_music: ' + (mus || 'N/A'));
+    if (!hasLine){
+      lines.push('', 'No character speaks in this clip; the subjects stay silent and only perform actions.');
+    }
+  }
+
+  const full = lines.join('\n').replace(/\n{3,}/g,'\n\n');
+  $('#prompt').value = full;
+  $('#promptPreview').textContent = full || '（还没有内容）';
+  $('#pLen').textContent = full.length + ' 字';
+  return full;
+}
+
+function currentPrompt(){
+  return ($('#rawBox').style.display === 'none') ? buildPrompt() : $('#prompt').value;
+}
+
+/* ---------- 事件 ---------- */
+$('#drop').onclick = () => $('#file').click();
+$('#file').onchange = e => upload(e.target.files[0]);
+['dragenter','dragover'].forEach(ev => $('#drop').addEventListener(ev, e => {
+  e.preventDefault(); $('#drop').classList.add('over');
+}));
+['dragleave','drop'].forEach(ev => $('#drop').addEventListener(ev, e => {
+  e.preventDefault(); $('#drop').classList.remove('over');
+}));
+$('#drop').addEventListener('drop', e => {
+  const f = e.dataTransfer.files[0]; if (f) upload(f);
+});
+$('#go').onclick = submit;
+$('#refresh').onclick = refreshJobs;
+document.querySelectorAll('[data-steps]').forEach(b => {
+  b.onclick = () => {
+    $('#steps').value = b.dataset.steps;
+    updateEst();
+    updateStepWarn();
+  };
+});
+$('#btnAB').onclick = toggleAB;
+$('#btnABGo').onclick = submitAB;
+$('#btnConcat').onclick = doConcat;
+$('#btnConcatClear').onclick = () => { SEL_JOBS.clear(); updateConcatBar();
+  [...JOB_NODES.values()].forEach(el => {
+    const cb = el.querySelector('input[type=checkbox]');
+    if (cb) cb.checked = false;
+  });
+};
+['#tier','#orientation','#seconds','#steps'].forEach(s => $(s).addEventListener('change', () => {
+  updateEst(); checkRatio(); updateStepWarn();
+}));
+
+$('#btnStruct').onclick = () => {
+  $('#structBox').style.display = 'block';
+  $('#rawBox').style.display = 'none';
+  buildPrompt();
+};
+$('#btnRaw').onclick = () => {
+  $('#structBox').style.display = 'none';
+  $('#rawBox').style.display = 'block';
+  $('#pLen').textContent = $('#prompt').value.length + ' 字';
+};
+$('#addShot').onclick = () => { SHOTS.push({tc:'', text:''}); renderShots(); renderDialogs(); };
+$('#addDialog').onclick = () => { DIALOGS.push({shot:'', spk:'S1', act:'', line:''}); renderDialogs(); };
+['#fScene','#fSfx','#fMusic'].forEach(s => $(s).addEventListener('input', buildPrompt));
+$('#noDialogue').addEventListener('change', buildPrompt);
+$('#zhDialogue').addEventListener('change', buildPrompt);
+$('#prompt').addEventListener('input', e => $('#pLen').textContent = e.target.value.length + ' 字');
+
+renderShots();
+renderDialogs();
+buildPrompt();
+updateStepWarn();
+
+/* ---------- 文件管理 ---------- */
+
+let FM = { root: 'comfy_output', path: '', items: [], selected: new Set() };
+
+function fmtSize(b){
+  if (!b) return '0 B';
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
+}
+
+function fmtTime(t){
+  const d = new Date(t * 1000);
+  const p = n => String(n).padStart(2,'0');
+  return `${d.getMonth()+1}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+async function fmLoad(root, path){
+  FM.root = root || FM.root;
+  FM.path = path || '';
+  FM.selected.clear();
+  let d;
+  try {
+    d = await jget(`/dsh/api/files?root=${encodeURIComponent(FM.root)}&path=${encodeURIComponent(FM.path)}`);
+  } catch(e){
+    toast('读取目录失败：' + e.message); return;
+  }
+  if (!d.ok){ toast(d.error || '读取失败'); return; }
+
+  FM.items = d.items || [];
+  FM.path = d.path || '';
+  $('#fmRoot').value = FM.root;
+  $('#fmPath').textContent = '/' + (FM.path || '');
+  $('#fmPath').title = d.root_label;
+  $('#fmStat').textContent = `${FM.items.length} 项 · 合计 ${fmtSize(d.total_bytes)}`;
+  fmRender();
+}
+
+function fmRender(){
+  if (!FM.items.length){
+    $('#fmList').innerHTML = '<div class="empty">空目录</div>';
+    return;
+  }
+  const html = FM.items.map((it, i) => {
+    const sel = FM.selected.has(it.name);
+    const icon = it.dir ? '📁' : (['mp4','webm','mov','mkv'].includes(it.kind) ? '🎬'
+                : ['png','jpg','jpeg','gif','webp'].includes(it.kind) ? '🖼' : '📄');
+    const name = escapeHtml(it.name);
+    const action = it.dir
+      ? `onclick="fmEnter('${name.replace(/'/g,"\\'")}')"`
+      : `onclick="fmPreview('${name.replace(/'/g,"\\'")}')"`;
+    return `<div style="display:flex;align-items:center;gap:7px;padding:5px 7px;
+      border-radius:6px;margin-bottom:3px;background:${sel?'#4f8cff1a':'var(--panel2)'};
+      border:1px solid ${sel?'var(--acc)':'transparent'}">
+      <input type="checkbox" ${sel?'checked':''} style="width:14px;height:14px;accent-color:var(--acc)"
+        onchange="fmToggle('${name.replace(/'/g,"\\'")}', this.checked)">
+      <span style="cursor:pointer;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+        ${action} title="${name}">${icon} ${name}</span>
+      <span style="font-size:10.5px;color:var(--tx2);white-space:nowrap">${it.dir?'目录':fmtSize(it.bytes)}</span>
+      <span style="font-size:10.5px;color:var(--tx2);white-space:nowrap">${fmtTime(it.mtime)}</span>
+    </div>`;
+  }).join('');
+  $('#fmList').innerHTML = html;
+}
+
+function fmToggle(name, on){
+  if (on) FM.selected.add(name); else FM.selected.delete(name);
+  fmRender();
+}
+
+function fmEnter(name){
+  const p = FM.path ? FM.path + '/' + name : name;
+  fmLoad(FM.root, p);
+}
+
+function fmPreview(name){
+  const p = FM.path ? FM.path + '/' + name : name;
+  const url = `/dsh/api/files/raw?root=${encodeURIComponent(FM.root)}&path=${encodeURIComponent(p)}`;
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  const isVid = ['mp4','webm','mov','mkv'].includes(ext);
+  const isImg = ['png','jpg','jpeg','gif','webp'].includes(ext);
+
+  let body;
+  if (isVid){
+    body = `<video src="${url}" controls playsinline preload="metadata"
+      style="width:100%;max-height:70vh;border-radius:8px;background:#000"></video>`;
+  } else if (isImg){
+    body = `<img src="${url}" style="width:100%;max-height:70vh;object-fit:contain;border-radius:8px">`;
+  } else {
+    toast('该类型不支持预览'); return;
+  }
+
+  const mask = document.createElement('div');
+  mask.style.cssText = `position:fixed;inset:0;background:#000c;z-index:999;
+    display:flex;align-items:center;justify-content:center;padding:24px`;
+  mask.innerHTML = `<div style="max-width:900px;width:100%;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;padding:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <span style="font-size:12.5px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis">${escapeHtml(name)}</span>
+      <span style="display:flex;gap:8px">
+        <a href="/dsh/api/files/download?root=${encodeURIComponent(FM.root)}&path=${encodeURIComponent(p)}"
+           style="font-size:12px;color:var(--acc);text-decoration:none;padding:4px 10px;
+           border:1px solid var(--line);border-radius:6px">下载</a>
+        <button class="btn ghost" style="width:auto;margin:0;padding:4px 10px;font-size:12px">关闭</button>
+      </span>
+    </div>${body}</div>`;
+  mask.querySelector('button').onclick = () => mask.remove();
+  mask.onclick = e => { if (e.target === mask) mask.remove(); };
+  document.body.appendChild(mask);
+}
+
+async function fmDelete(){
+  if (!FM.selected.size){ toast('先勾选文件'); return; }
+  const names = [...FM.selected];
+  const list = names.slice(0, 8).map(n => '· ' + n).join('\n');
+  const more = names.length > 8 ? `\n… 还有 ${names.length - 8} 个` : '';
+  if (!confirm(`确认删除 ${names.length} 项？\n\n${list}${more}\n\n此操作不可恢复。`)) return;
+
+  const paths = names.map(n => FM.path ? FM.path + '/' + n : n);
+  const r = await jpost('/dsh/api/files/delete', {root: FM.root, paths});
+  if (!r.ok){ toast('删除失败：' + (r.error||'')); return; }
+  if (r.failed && r.failed.length){
+    toast(`删除 ${r.deleted.length} 项，失败 ${r.failed.length} 项`, 4000);
+    console.warn('删除失败明细', r.failed);
+  } else {
+    toast(`已删除 ${r.deleted.length} 项`);
+  }
+  fmLoad(FM.root, FM.path);
+  refreshJobs();
+}
+
+$('#fmRoot').onchange = e => fmLoad(e.target.value, '');
+$('#fmUp').onclick = () => {
+  if (!FM.path){ toast('已在根目录'); return; }
+  const parts = FM.path.split('/');
+  parts.pop();
+  fmLoad(FM.root, parts.join('/'));
+};
+$('#fmDel').onclick = fmDelete;
+$('#fmSelAll').onclick = () => {
+  if (FM.selected.size === FM.items.length){
+    FM.selected.clear();
+  } else {
+    FM.items.forEach(it => FM.selected.add(it.name));
+  }
+  fmRender();
+};
+
+/* ---------- 启动：三项并行，任何一项失败都不拖垮其他 ---------- */
+(async () => {
+  hw();
+  refreshJobs();
+  setInterval(hw, 2500);
+  setInterval(refreshJobs, 3000);
+  try { await fmLoad('comfy_output', ''); } catch(e){ console.error(e); }
+  try {
+    await loadOptions();
+  } catch(e) {
+    toast('选项加载失败：' + e.message, 5000);
+    console.error(e);
+  }
+})();
+</script>
+</body>
+</html>
