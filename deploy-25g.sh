@@ -153,7 +153,6 @@ add_pkg(){ need_pkg "$2" || PIP_LIST="$PIP_LIST $1"; }
 add_pkg "trampoline"                trampoline
 add_pkg "torchsde"                  torchsde
 add_pkg "kornia"                    kornia
-add_pkg "kornia_rs"                 kornia_rs
 add_pkg "spandrel"                  spandrel
 add_pkg "comfyui_workflow_templates" comfyui_workflow_templates
 add_pkg "comfyui_frontend_package"  comfyui_frontend_package
@@ -163,14 +162,9 @@ add_pkg "gguf"                      gguf
 add_pkg "PIL"                       pillow
 add_pkg "numpy"                     numpy
 add_pkg "av"                        av
-add_pkg "cv2"                       opencv-python-headless
-add_pkg "imageio_ffmpeg"            imageio-ffmpeg
-add_pkg "scenedetect"               "scenedetect>=0.6.4,<0.8"
-add_pkg "ultralytics"               ultralytics
 
 if [ -n "$PIP_LIST" ]; then
   c_y "  需要补装:$PIP_LIST"
-  # 分两批：先常规，再 ultralytics（它依赖 torch，但 torch 已满足不会动）
   "$PY" -m pip install -q $PIP_LIST 2>&1 | tail -3
 else
   ok "全部依赖已就绪"
@@ -290,9 +284,7 @@ cd "$COMFY/custom_nodes" || exit 1
 
 for repo in \
   "city96/ComfyUI-GGUF" \
-  "Video-Rebirth/ComfyUI-HyperFlow-Flash" \
-  "AIMixer/ComfyUI_MiniMaxH3_Director" \
-  "JGRFW/comfyui-AICG3D"
+  "Video-Rebirth/ComfyUI-HyperFlow-Flash"
 do
   name=$(basename "$repo")
   if [ -d "$name" ]; then ok "$name 已存在"; continue; fi
