@@ -288,8 +288,6 @@ try:
 except Exception as e:
     print("  超分模型失败:", e)
 PYPF
-else
-  ok "超分模型已有，跳过"
 fi
 
 echo
