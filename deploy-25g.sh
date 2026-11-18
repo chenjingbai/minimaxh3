@@ -28,6 +28,61 @@ BIG=/opt/h3-extra                # overlay：文本编码器
 CHECK_ONLY=0
 [ "${1:-}" = "--check" ] && CHECK_ONLY=1
 
+# ---------------------------------------------------------------- git 与下载
+# 平台会在 /usr/local/bin/git 放一个包装脚本，把所有 GitHub URL 改写成
+# gh-proxy.org 代理前缀。该代理经常不可用，导致 git clone 无限挂起。
+# 这里统一优先使用系统真实 git，并对每次 clone 加超时。
+if [ -x /usr/bin/git ]; then
+  GIT=/usr/bin/git
+else
+  GIT=$(command -v git 2>/dev/null || echo git)
+fi
+
+# 三层回退拉一个 GitHub 仓库到目录：
+#   1) 真实 git 直连（超时 120s）
+#   2) tar.gz + 镜像 A
+#   3) tar.gz + 镜像 B
+#   4) 全失败返回非 0
+GH_MIRRORS=(
+  "https://ghfast.top/https://github.com"
+  "https://ghproxy.net/https://github.com"
+  "https://gh-proxy.org/https://github.com"
+)
+
+fetch_repo(){
+  local repo="$1" dest="$2" branch="${3:-main}"
+  local parent; parent=$(dirname "$dest"); mkdir -p "$parent"
+
+  # 1. 真实 git 直连
+  if command -v "$GIT" >/dev/null 2>&1; then
+    rm -rf "$dest" 2>/dev/null
+    if timeout 120 "$GIT" clone --depth 1 "https://github.com/$repo.git" "$dest" \
+       >/dev/null 2>&1 && [ -d "$dest" ]; then
+      return 0
+    fi
+    rm -rf "$dest" 2>/dev/null
+  fi
+
+  # 2/3. tar.gz 镜像
+  local name; name=$(basename "$repo")
+  local m
+  for m in "${GH_MIRRORS[@]}"; do
+    if timeout 150 curl -fL --retry 1 --connect-timeout 12 \
+         -o "/tmp/$name.tgz" "$m/$repo/archive/refs/heads/$branch.tar.gz" 2>/dev/null; then
+      if tar xzf "/tmp/$name.tgz" -C /tmp 2>/dev/null; then
+        local d; d=$(find /tmp -maxdepth 1 -type d -name "$name-*" | head -1)
+        if [ -n "$d" ]; then
+          rm -rf "$dest"; mv "$d" "$dest"; rm -f "/tmp/$name.tgz"
+          return 0
+        fi
+      fi
+    fi
+    rm -f "/tmp/$name.tgz" 2>/dev/null
+  done
+
+  return 1
+}
+
 c_g(){ printf '\033[32m%s\033[0m\n' "$*"; }
 c_y(){ printf '\033[33m%s\033[0m\n' "$*"; }
 c_r(){ printf '\033[31m%s\033[0m\n' "$*"; }
@@ -121,13 +176,17 @@ step "2/7 ComfyUI 本体"
 if [ "$HAVE_COMFY" = 1 ]; then
   ok "已存在，跳过"
 else
-  cd /opt || exit 1
-  for i in 1 2 3; do
-    git clone --depth 1 https://github.com/comfyanonymous/ComfyUI.git "$COMFY" && break
-    c_y "  第 $i 次失败"; rm -rf "$COMFY"; sleep 5
-  done
-  [ -f "$COMFY/main.py" ] || { ng "ComfyUI 拉取失败"; exit 1; }
-  ok "已克隆"
+  c_y "  拉取 ComfyUI（git 直连 → 镜像回退）..."
+  if fetch_repo "comfyanonymous/ComfyUI" "$COMFY" "master"; then
+    [ -f "$COMFY/main.py" ] && ok "已就位（$(du -sh "$COMFY" 2>/dev/null | cut -f1)）" \
+      || { ng "拉取成功但 main.py 不存在"; exit 1; }
+  else
+    ng "ComfyUI 拉取失败（git 和 3 个镜像都不可用）"
+    c_y "  可手动下载后放到 $COMFY："
+    c_y "    curl -L -o /tmp/cu.tgz https://ghfast.top/https://github.com/comfyanonymous/ComfyUI/archive/refs/heads/master.tar.gz"
+    c_y "    tar xzf /tmp/cu.tgz -C /opt && mv /opt/ComfyUI-master $COMFY"
+    exit 1
+  fi
 fi
 
 # ---------------------------------------------------------------- 3 依赖
@@ -377,12 +436,14 @@ for repo in \
 do
   name=$(basename "$repo")
   if [ -d "$name" ]; then ok "$name 已存在"; continue; fi
-  okk=0
-  for i in 1 2 3; do
-    git clone --depth 1 "https://github.com/$repo" "$name" >/dev/null 2>&1 && { okk=1; break; }
-    rm -rf "$name"; sleep 4
-  done
-  [ "$okk" = 1 ] && ok "$name" || ng "$name 拉取失败（可稍后重试）"
+  c_y "  拉取 $name（git 直连 → 镜像回退）..."
+  if fetch_repo "$repo" "$PWD/$name" "main"; then
+    ok "$name"
+  else
+    ng "$name 拉取失败"
+    c_y "    手动：curl -L -o /tmp/$name.tgz https://ghfast.top/https://github.com/$repo/archive/refs/heads/main.tar.gz"
+    c_y "          tar xzf /tmp/$name.tgz -C /tmp && mv /tmp/$name-main $PWD/$name"
+  fi
 done
 
 # 工作台：脚本同级 → /workspace/dsh_console_h3
