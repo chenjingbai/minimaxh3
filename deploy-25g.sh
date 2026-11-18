@@ -304,20 +304,29 @@ if [ "$DL_FAILED" = 1 ]; then
   exit 1
 fi
 
-# 软链前验证源文件真实存在（-f 会跟随软链，所以用实体路径检查）
+# 软链前验证源文件真实存在
+# 注意：DENOISER 是我们要建的软链位置，不是下载产物；
+# 所以只校验「实体文件」（REAL / ENCODER / VAE），软链在下面才建。
 echo
 c_b "  实体文件校验"
 PROBLEM=0
-for f in "$DENOISER_REAL" "$DENOISER" "$ENCODER" "$VVAE" "$AVAE"; do
-  [ -z "$f" ] && continue
-  if [ -f "$f" ]; then
-    printf "    ✅ %-56s %s\n" "$(basename "$f")" "$(du -h "$f" 2>/dev/null | cut -f1)"
+check_real(){
+  local label="$1" path="$2"
+  [ -z "$path" ] && return 0
+  if [ -f "$path" ]; then
+    printf "    ✅ %-30s %-54s %s\n" "$label" "$(basename "$path")" \
+           "$(du -h "$path" 2>/dev/null | cut -f1)"
   else
-    printf "    ❌ %-56s 缺失\n" "$(basename "$f")"
+    printf "    ❌ %-30s %s 缺失\n" "$label" "$path"
     PROBLEM=1
   fi
-done
+}
+check_real "去噪器"     "$DENOISER_REAL"
+check_real "文本编码器" "$ENCODER"
+check_real "视频 VAE"   "$VVAE"
+check_real "音频 VAE"   "$AVAE"
 [ "$PROBLEM" = 1 ] && { ng "有必需模型缺失，中止"; exit 1; }
+ok "四个实体文件齐全"
 
 # ---------------------------------------------------------------- 5 软链
 step "5/7 建立软链"
