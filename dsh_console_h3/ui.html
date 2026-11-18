@@ -11,6 +11,7 @@
     --warn:#f0a020; --err:#e5484d;
   }
   *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
   body{margin:0;background:var(--bg);color:var(--tx);
        font:14px/1.55 -apple-system,"Segoe UI","Noto Sans SC",sans-serif}
   button,input,select,textarea{font:inherit;color:inherit}
@@ -27,7 +28,6 @@
   .bar i.warn{background:var(--warn)} .bar i.err{background:var(--err)}
 
   .cols{display:grid;grid-template-columns:400px 1fr;gap:14px;margin-top:6px}
-  @media(max-width:900px){.cols{grid-template-columns:1fr}}
 
   .sec{background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:12px 13px;margin-bottom:12px}
   .sec h3{margin:0 0 10px;font-size:13px;color:var(--tx2);font-weight:600;
@@ -46,7 +46,8 @@
         color:var(--tx2);cursor:pointer;font-size:12.5px;transition:.15s}
   .drop:hover,.drop.over{border-color:var(--acc);background:#4f8cff0d;color:var(--tx)}
   .thumb{margin-top:9px;display:none}
-  .thumb img{width:100%;border-radius:8px;display:block;border:1px solid var(--line)}
+  .thumb img{width:100%;max-height:200px;object-fit:contain;border-radius:8px;
+             display:block;border:1px solid var(--line);background:#000}
   .meta{font-size:11.5px;color:var(--tx2);margin-top:5px;display:flex;justify-content:space-between;gap:8px}
   .meta b{color:var(--tx)}
 
@@ -76,7 +77,9 @@
             display:flex;gap:12px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
   .job .pbar{height:3px;background:#232a36;border-radius:2px;margin-top:7px;overflow:hidden}
   .job .pbar i{display:block;height:100%;width:0;background:var(--acc);transition:width .5s}
-  .job video,.job img.thumb2{width:100%;margin-top:9px;border-radius:7px;display:block;background:#000}
+  .job video,.job img.thumb2{width:100%;max-height:340px;object-fit:contain;
+       margin-top:9px;border-radius:7px;display:block;background:#000}
+  .job video{aspect-ratio:auto}
   .acts{display:flex;gap:7px;margin-top:8px}
   .acts button{flex:1;padding:5px;font-size:12px;border-radius:6px;cursor:pointer;
                background:var(--panel);border:1px solid var(--line);color:var(--tx2)}
@@ -91,6 +94,80 @@
          pointer-events:none;transition:.25s;z-index:99;max-width:90vw}
   .toast.on{opacity:1}
   .warnline{font-size:11.5px;color:#ffc45c;margin-top:7px;display:none}
+
+  /* ============ 平板：≤900px 单列 ============ */
+  @media(max-width:900px){
+    .cols{grid-template-columns:1fr}
+    .wrap{max-width:none}
+  }
+
+  /* ============ 手机：≤640px ============ */
+  @media(max-width:640px){
+    /* 输入控件 <16px 会触发 Safari 自动放大，统一抬到 16px */
+    input[type=text],input[type=number],select,textarea{font-size:16px}
+
+    .wrap{padding:10px 10px 90px}
+
+    /* 硬件条：两列紧凑，去掉 sticky（手机屏小，粘住太占位） */
+    .hw{grid-template-columns:repeat(2,1fr);gap:6px;position:static;padding:6px 0 8px}
+    .card{padding:6px 9px;border-radius:8px}
+    .card .k{font-size:10px}
+    .card .v{font-size:13.5px}
+
+    .sec{padding:10px 11px;border-radius:10px;margin-bottom:10px}
+    .sec h3{font-size:12px;margin-bottom:8px}
+
+    /* 两列/三列布局在手机上压缩成一列 */
+    .row,.row3{grid-template-columns:1fr;gap:8px}
+
+    /* 按钮加大触摸区（Apple 建议 ≥44px） */
+    .btn{padding:12px;font-size:15px;margin-top:12px}
+    .btn.ghost{padding:10px}
+
+    /* 步数快捷按钮：一行两个 */
+    .stepbtns{display:grid !important;grid-template-columns:1fr 1fr;gap:6px}
+    .stepbtns .btn{padding:9px 6px;font-size:12.5px;margin:0}
+
+    /* 任务卡片操作按钮：两个一行 */
+    .acts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    .acts button{padding:9px 4px;font-size:12.5px}
+
+    /* 媒体进一步限高，避免占满整屏 */
+    .thumb img{max-height:150px}
+    .job video,.job img.thumb2{max-height:260px}
+
+    /* 任务卡片信息行允许换行 */
+    .job .sub{flex-wrap:wrap;gap:6px 10px;font-size:11px}
+    .job .top{gap:6px}
+    .job .tag{font-size:10px;padding:2px 6px}
+
+    /* 预设/提示词面板高度收紧 */
+    #presetList{max-height:180px}
+    #presetBody{max-height:200px}
+    #promptPreview{max-height:130px}
+    #fmList{max-height:300px}
+
+    /* 弹窗预览全屏化 */
+    .media-mask{padding:0 !important}
+    .media-mask > div{max-width:100% !important;border-radius:0 !important;
+                      max-height:100vh;overflow:auto}
+
+    /* 拼接条换行 */
+    #concatBar{flex-wrap:wrap}
+    #concatBar > button{flex:1 1 40%}
+
+    /* toast 靠底更近 */
+    .toast{bottom:16px;font-size:12.5px;padding:8px 13px;max-width:92vw}
+  }
+
+  /* ============ 超窄屏：≤380px ============ */
+  @media(max-width:380px){
+    .wrap{padding:8px 8px 80px}
+    .hw{grid-template-columns:1fr 1fr}
+    .card .v{font-size:12.5px}
+    .btn{font-size:14px;padding:11px}
+    .acts{grid-template-columns:1fr}
+  }
 </style>
 </head>
 <body>
@@ -120,6 +197,8 @@
         </select>
         <label id="loraLabel" style="display:none">turbo LoRA</label>
         <select id="lora" style="display:none"></select>
+        <div id="loraWarn" style="display:none;font-size:11px;border-radius:6px;
+             padding:6px 8px;margin-top:6px;line-height:1.5"></div>
       </div>
 
       <div class="sec">
@@ -128,8 +207,8 @@
           <div>
             <label>尺寸档</label>
             <select id="tier">
-              <option value="small">小</option>
-              <option value="mid" selected>中</option>
+              <option value="small" selected>小</option>
+              <option value="mid">中</option>
               <option value="big">大</option>
             </select>
           </div>
@@ -137,7 +216,7 @@
             <label>方向</label>
             <select id="orientation">
               <option value="landscape">横版</option>
-              <option value="portrait">竖版</option>
+              <option value="portrait" selected>竖版</option>
             </select>
           </div>
         </div>
@@ -149,24 +228,37 @@
               <option value="5">5 秒</option>
               <option value="10" selected>10 秒</option>
               <option value="15">15 秒</option>
-              <option value="30">30 秒（2 段）</option>
-              <option value="45">45 秒（3 段）</option>
-              <option value="60">60 秒（4 段）</option>
-              <option value="90">90 秒（6 段）</option>
-              <option value="120">120 秒（8 段）</option>
+              <option value="20">20 秒</option>
+              <option value="30">30 秒</option>
+              <option value="45">45 秒</option>
+              <option value="60">60 秒</option>
+              <option value="90">90 秒</option>
+              <option value="120">120 秒</option>
             </select>
           </div>
+          <div>
+            <label>生成方式</label>
+            <select id="lengthMode">
+              <option value="auto" selected>自动</option>
+              <option value="single">单段（≤15秒）</option>
+              <option value="chain">分段拼接</option>
+            </select>
+          </div>
+          <div>
+            <label>种子</label>
+            <input type="number" id="seed" value="0">
+          </div>
+        </div>
+
+        <div class="row" style="margin-top:0">
           <div>
             <label>步数</label>
             <input type="number" id="steps" value="6" min="1" max="60">
           </div>
-          <div>
-            <label>种子</label>
-            <input type="number" id="seed" value="42">
-          </div>
+          <div></div>
         </div>
 
-        <div style="display:flex;gap:5px;margin-top:7px">
+        <div class="stepbtns" style="display:flex;gap:5px;margin-top:7px">
           <button class="btn ghost" data-steps="3" style="margin:0;padding:5px;font-size:11.5px">3 步 最快</button>
           <button class="btn ghost" data-steps="4" style="margin:0;padding:5px;font-size:11.5px">4 步 快</button>
           <button class="btn ghost" data-steps="6" style="margin:0;padding:5px;font-size:11.5px">6 步 推荐</button>
@@ -201,6 +293,8 @@
             <select id="upscaleModel"></select>
           </div>
         </div>
+        <div id="scaleWarn" style="display:none;font-size:11px;color:#ffc45c;
+             background:#f0a02012;border-radius:6px;padding:6px 8px;margin-top:6px"></div>
         <div class="est" id="est"></div>
       </div>
 
@@ -208,34 +302,75 @@
         <h3 style="display:flex;justify-content:space-between;align-items:center">
           <span>提示词</span>
           <span style="display:flex;gap:6px">
+            <button class="btn ghost" id="btnPreset" style="width:auto;margin:0;padding:4px 10px;font-size:11.5px">预设</button>
             <button class="btn ghost" id="btnStruct" style="width:auto;margin:0;padding:4px 10px;font-size:11.5px">结构化</button>
             <button class="btn ghost" id="btnRaw" style="width:auto;margin:0;padding:4px 10px;font-size:11.5px">原文</button>
           </span>
         </h3>
 
+        <!-- 预设库 -->
+        <div id="presetBox" style="display:none;margin-bottom:10px;background:var(--panel2);
+             border-radius:8px;padding:9px">
+          <div class="row" style="margin-bottom:7px">
+            <div>
+              <select id="presetCat">
+                <option value="">全部分类</option>
+              </select>
+            </div>
+            <div>
+              <input type="text" id="presetSearch" placeholder="搜索预设名…">
+            </div>
+          </div>
+          <div id="presetList" style="max-height:220px;overflow:auto"></div>
+          <div style="font-size:11px;color:var(--tx2);margin-top:7px">
+            来自 AICG3D，共 <span id="presetCount">0</span> 条。点一条可预览正文。
+          </div>
+        </div>
+
+        <!-- 预设预览 -->
+        <div id="presetPreview" style="display:none;margin-bottom:10px;background:#1a2130;
+             border:1px solid var(--acc);border-radius:8px;padding:9px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span id="presetTitle" style="font-size:12px;color:var(--acc)"></span>
+            <span style="display:flex;gap:6px">
+              <button class="btn ghost" id="presetInsert"
+                style="width:auto;margin:0;padding:3px 9px;font-size:11px">填入</button>
+              <button class="btn ghost" id="presetClose"
+                style="width:auto;margin:0;padding:3px 9px;font-size:11px">关闭</button>
+            </span>
+          </div>
+          <pre id="presetBody" style="font-size:11.5px;line-height:1.5;max-height:260px;
+               overflow:auto;white-space:pre-wrap;margin:0;color:var(--tx2)"></pre>
+        </div>
+
         <!-- 结构化编辑 -->
         <div id="structBox">
-          <label>整体场景（先写这一段）</label>
-          <textarea id="fScene" style="min-height:56px"
+          <label>整体场景</label>
+          <textarea id="fScene" style="min-height:72px"
             placeholder="A dim workshop at dusk, warm light through the window, dust drifting in the air."></textarea>
 
-          <label>分镜（每行一个镜头，从 Shot 1 起）</label>
-          <div id="shots"></div>
-          <button class="btn ghost" id="addShot"
-            style="width:100%;margin-top:6px;padding:5px;font-size:12px">+ 添加镜头</button>
+          <details id="advPrompt" style="margin-top:10px">
+            <summary style="cursor:pointer;font-size:12px;color:var(--tx2);
+                     padding:6px 0;user-select:none">高级：分镜 / 音效 / 配乐 / 台词</summary>
 
-          <label>音效 / 环境声（overall_soundscape，1–4 句）</label>
-          <textarea id="fSfx" style="min-height:48px"
-            placeholder="Steady rain on glass, a low room hum, distant thunder rolling closer."></textarea>
+            <label>分镜（每行一个镜头，从 Shot 1 起）</label>
+            <div id="shots"></div>
+            <button class="btn ghost" id="addShot"
+              style="width:100%;margin-top:6px;padding:5px;font-size:12px">+ 添加镜头</button>
 
-          <label>配乐（non_diegetic_music，1–3 句；没有就留空）</label>
-          <textarea id="fMusic" style="min-height:40px"
-            placeholder="Slow sustained strings, rising tension toward the end."></textarea>
+            <label>音效 / 环境声（overall_soundscape，1–4 句）</label>
+            <textarea id="fSfx" style="min-height:48px"
+              placeholder="Steady rain on glass, a low room hum, distant thunder rolling closer."></textarea>
 
-          <label>台词（绑定到镜头后，只在该镜头内说）</label>
-          <div id="dialogs"></div>
-          <button class="btn ghost" id="addDialog"
-            style="width:100%;margin-top:6px;padding:5px;font-size:12px">+ 添加台词</button>
+            <label>配乐（non_diegetic_music，1–3 句；没有就留空）</label>
+            <textarea id="fMusic" style="min-height:40px"
+              placeholder="Slow sustained strings, rising tension toward the end."></textarea>
+
+            <label>台词（绑定到镜头后，只在该镜头内说）</label>
+            <div id="dialogs"></div>
+            <button class="btn ghost" id="addDialog"
+              style="width:100%;margin-top:6px;padding:5px;font-size:12px">+ 添加台词</button>
+          </details>
 
           <div class="chk" style="margin-top:10px;padding:7px 9px;background:var(--panel);
                border-radius:7px">
@@ -276,7 +411,12 @@
       <div class="sec">
         <h3 style="display:flex;justify-content:space-between;align-items:center">
           <span>任务</span>
-          <button class="btn ghost" id="refresh" style="width:auto;margin:0;padding:4px 12px;font-size:12px">刷新</button>
+          <span style="display:flex;align-items:center;gap:8px">
+            <label class="chk" style="margin:0;font-size:11px;gap:5px">
+              <input type="checkbox" id="keepMode">仅删记录
+            </label>
+            <button class="btn ghost" id="refresh" style="width:auto;margin:0;padding:4px 12px;font-size:12px">刷新</button>
+          </span>
         </h3>
 
         <div id="concatBar" style="display:none;align-items:center;gap:8px;
@@ -330,6 +470,7 @@ const $ = s => document.querySelector(s);
 const fmtGB = b => (b/1073741824).toFixed(1) + ' GB';
 const fmtPct = (a,b) => b ? Math.round(a/b*100) : 0;
 
+let KEEP_MODE = false;
 let OPT = null, FIRST = null, pollTimer = null, TM_LORA = '';
 
 function toast(msg, ms=2400){
@@ -362,9 +503,6 @@ async function hw(){
   if (d.disk && d.disk.total){
     items.push({k:'Workspace', v:fmtGB(d.disk.used)+' / '+fmtGB(d.disk.total),
                 p:fmtPct(d.disk.used,d.disk.total)});
-  }
-  if (d.cpu){
-    items.push({k:'CPU 负载', v:(d.cpu.load||0).toFixed(2)+' / '+d.cpu.cores+' 核', p:0});
   }
   items.push({k:'队列', v:(d.queue||0)+' 个', p:0});
 
@@ -399,11 +537,70 @@ async function loadOptions(){
     }
   };
   const unets = (OPT.unet||[]);
+  const COMPAT = (OPT && OPT.compat) || {unets:{}, loras:{}};
+
   const fillUnet = () => {
     const eng = $('#engine').value;
     const list = unets.filter(n => eng === 'hyperflow' ? n.includes('hyperflow') : (!n.includes('hyperflow')));
-    fill('#unet', list, eng === 'hyperflow' ? '14b-int8' : 'fl2va_pruned_int8');
+    const el = $('#unet');
+    el.innerHTML = '';
+    (list.length ? list : unets).forEach(n => {
+      const o = document.createElement('option');
+      o.value = n;
+      const fam = (COMPAT.unets[n]||{}).label;
+      o.textContent = fam ? `${n}  [${fam}]` : n;
+      el.appendChild(o);
+    });
+    const prefer = eng === 'hyperflow' ? '14b-int8' : 'fl2va_pruned_int8';
+    const hit = (list.length?list:unets).find(x => x.includes(prefer));
+    if (hit) el.value = hit;
   };
+
+  // LoRA 下拉：标出兼容性，不兼容的加 ⚠ 前缀与 title
+  const fillLora = () => {
+    const el = $('#lora');
+    const eng = $('#engine').value;
+    const unet = $('#unet').value;
+    const cur = el.value;
+    el.innerHTML = '<option value="">（不用 LoRA）</option>';
+    (OPT.lora || []).forEach(n => {
+      const c = COMPAT.loras[n] || {};
+      const bad = c.target && c.target !== 'unknown' &&
+                  ((eng === 'hyperflow' && c.target !== 'hyperflow') ||
+                   (eng !== 'hyperflow' && c.target === 'hyperflow'));
+      const o = document.createElement('option');
+      o.value = n;
+      o.textContent = (bad ? '⚠ ' : '') + n;
+      if (c.note) o.title = c.note;
+      o.dataset.bad = bad ? '1' : '0';
+      el.appendChild(o);
+    });
+    if (cur && [...el.options].some(x => x.value === cur)) el.value = cur;
+    updateLoraWarn();
+  };
+
+  const updateLoraWarn = () => {
+    const el = $('#loraWarn');
+    if (!el) return;
+    const sel = $('#lora');
+    const opt = sel.options[sel.selectedIndex];
+    const bad = opt && opt.dataset.bad === '1';
+    const note = opt && opt.title;
+    if (bad){
+      el.style.display = 'block';
+      el.style.color = '#ff8b8f';
+      el.style.background = '#e5484d12';
+      el.textContent = `⚠ 与当前底模不匹配${note ? '：' + note : ''}。提交会被拒绝。`;
+    } else if (sel.value && note){
+      el.style.display = 'block';
+      el.style.color = '#8fb4ff';
+      el.style.background = '#4f8cff12';
+      el.textContent = note;
+    } else {
+      el.style.display = 'none';
+    }
+  };
+
   fillUnet();
   fill('#lora', OPT.lora, '8step');
   fill('#vae', OPT.vae, 'video_vae_int8');
@@ -419,9 +616,36 @@ async function loadOptions(){
     el.disabled = true;
   }
 
+  fillLora();
+  $('#unet').addEventListener('change', fillLora);
+  $('#lora').addEventListener('change', updateLoraWarn);
+
+  // 超分模型可用性提示
+  const updateScaleWarn = () => {
+    const el = $('#scaleWarn');
+    if (!el) return;
+    const sc = parseInt($('#upscale').value) || 0;
+    const mdl = $('#upscaleModel').value;
+    if (sc > 1 && !mdl){
+      el.style.display = 'block';
+      el.textContent = '⚠ 已选超分但没选模型，提交会被拒绝。去 models/upscale_models/ 放一个 4x 模型。';
+    } else if (sc > 1 && mdl){
+      el.style.display = 'block';
+      el.style.color = '#8fb4ff';
+      el.style.background = '#4f8cff12';
+      el.textContent = `超分：${mdl} · ${sc}x（${sc === 2 ? '4x 模型放大后缩回一半，更锐' : '直接 4 倍'}）`;
+    } else {
+      el.style.display = 'none';
+    }
+  };
+  $('#upscale').addEventListener('change', updateScaleWarn);
+  $('#upscaleModel').addEventListener('change', updateScaleWarn);
+  updateScaleWarn();
+
   $('#engine').addEventListener('change', () => {
     const hf = $('#engine').value === 'hyperflow';
     fillUnet();
+    fillLora();
     $('#steps').value = hf ? 6 : 8;
     $('#loraLabel').style.display = hf ? 'none' : 'block';
     $('#lora').style.display = hf ? 'none' : 'block';
@@ -473,6 +697,15 @@ function targetSize(){
 }
 
 /* ---------- 预估 ---------- */
+function planMode(totalSec){
+  const mode = ($('#lengthMode') && $('#lengthMode').value) || 'auto';
+  if (mode === 'single') return {mode:'single', nSeg:1, segSec:Math.min(totalSec,15), clamped: totalSec>15};
+  if (mode === 'chain')  return {mode:'chain',  nSeg:Math.max(1,Math.ceil(totalSec/15-1e-9)), segSec:15};
+  // auto
+  if (totalSec <= 15) return {mode:'single', nSeg:1, segSec:totalSec};
+  return {mode:'chain', nSeg:Math.ceil(totalSec/15-1e-9), segSec:15};
+}
+
 function updateEst(){
   const {w,h} = targetSize();
   const el = $('#resActual');
@@ -482,8 +715,9 @@ function updateEst(){
   }
   const totalSec = parseFloat($('#seconds').value);
   const steps = parseInt($('#steps').value) || 6;
-  const segSec = Math.min(totalSec, 15);
-  const nSeg = Math.max(1, Math.ceil(totalSec / 15 - 1e-9));
+  const plan = planMode(totalSec);
+  const nSeg = plan.nSeg;
+  const segSec = plan.segSec;
 
   const frames = framesFor(segSec);
   const px = w*h;
@@ -492,18 +726,24 @@ function updateEst(){
 
   const info = $('#segInfo');
   if (info){
-    if (nSeg > 1){
+    if (plan.mode === 'chain' && nSeg > 1){
       info.style.display = 'block';
-      info.innerHTML = `长片模式：拆成 <b>${nSeg}</b> 段 × 约 <b>${segSec}</b> 秒（${frames} 帧）`
-        + `<br>段间用末帧接续，全部完成后自动拼接`;
+      info.innerHTML = `分段拼接：<b>${nSeg}</b> 段 × <b>${segSec}</b> 秒（${frames} 帧）`
+        + `<br>段间用末帧接续，全部完成后自动拼接成一条`;
+    } else if (plan.clamped){
+      info.style.display = 'block';
+      info.innerHTML = `单段模式：H3 上限 15 秒，已按 <b>${frames}</b> 帧截断`;
     } else {
       info.style.display = 'none';
     }
   }
 
   $('#est').innerHTML =
-    `输出 <b>${w}×${h}</b> · 共 <b>${nSeg}</b> 段 × <b>${frames}</b> 帧 (${segSec.toFixed(1)}s) · <b>${steps}</b> 步`
-    + `<br>粗估 <b>${Math.round(est)}</b> 秒（约 ${(est/60).toFixed(0)} 分钟，仅参考，实测偏差 ±40%）`;
+    `输出 <b>${w}×${h}</b> · ` +
+    (nSeg > 1 ? `<b>${nSeg}</b> 段 × <b>${frames}</b> 帧 (${segSec}s)` 
+              : `<b>${frames}</b> 帧 (${(frames/24).toFixed(1)}s)`) +
+    ` · <b>${steps}</b> 步`
+    + `<br>粗估 <b>${Math.round(est)}</b> 秒（约 ${(est/60).toFixed(0)} 分钟，仅参考，偏差 ±40%）`;
 }
 
 function framesFor(sec){
@@ -632,6 +872,8 @@ function updateJobCard(el, j){
       : `<span>${j.length}帧</span>`) +
     (j.steps ? `<span>${j.steps}步</span>` : '') +
     `<span>${j.engine==='hyperflow'?'HF':(j.engine==='upscale'?'超分':(j.engine==='concat'?'拼接':'原生'))}</span>` +
+    (j.seed !== undefined && j.seed !== null
+      ? `<span style="color:var(--tx2)">seed ${j.seed}</span>` : '') +
     (j.ab_group ? `<span style="color:var(--acc)">AB:${escapeHtml(j.ab_group.slice(0,12))}</span>` : '') +
     (j.upscale_scale > 1 ? `<span style="color:#5fd99a">${j.upscale_scale}x</span>` : '') +
     (j.elapsed ? `<span>耗时 ${dur(j.elapsed)}</span>` : '');
@@ -697,10 +939,89 @@ function updateJobCard(el, j){
       acts.appendChild(b);
     });
   }
+  // 复刻：把该任务的全部参数填回左侧表单
+  if (j.refill){
+    const rf = document.createElement('button');
+    rf.textContent = '复刻';
+    rf.title = '把这套参数（含种子）填回表单，改一处再跑';
+    rf.onclick = () => refillFromJob(j);
+    acts.appendChild(rf);
+  }
+
   const d = document.createElement('button');
-  d.textContent = '删除';
+  d.textContent = KEEP_MODE ? '仅删记录' : '删除';
+  d.title = KEEP_MODE ? '保留文件，只移除任务卡片' : '删除任务并清掉产出与副本';
   d.onclick = () => delJob(j.id);
   acts.appendChild(d);
+}
+
+/* ---------- 参数回填 ---------- */
+
+function refillFromJob(j){
+  const r = (j && j.refill) || null;
+  if (!r){ toast('这条任务没有可回填的参数'); return; }
+
+  let applied = 0;
+  const setVal = (sel, v) => {
+    const el = $(sel);
+    if (!el || v === undefined || v === null) return false;
+    const s = String(v);
+    // 只在选项存在时设置，避免 select 被设成不存在的值
+    if (el.tagName === 'SELECT'){
+      if (![...el.options].some(o => o.value === s)) return false;
+    }
+    el.value = s;
+    applied++;
+    return true;
+  };
+
+  // 引擎
+  if (r.engine) setVal('#engine', r.engine);
+
+  // 规格
+  setVal('#tier', r.tier);
+  setVal('#orientation', r.orientation);
+  if (r.seconds !== undefined) setVal('#seconds', r.seconds);
+  setVal('#lengthMode', r.length_mode);
+  setVal('#steps', r.steps);
+  setVal('#seed', r.seed);
+
+  // 模型
+  if (r.unet) setVal('#unet', r.unet);
+  if (r.vae_video) setVal('#vae', r.vae_video);
+
+  // LoRA（原生引擎才显示）
+  if (r.use_lora && r.lora){
+    setVal('#lora', r.lora);
+    const loraSel = $('#lora');
+    if (loraSel) loraSel.dispatchEvent(new Event('change'));
+  }
+
+  // 超分
+  setVal('#upscale', r.upscale_scale);
+  if (r.upscale_model) setVal('#upscaleModel', r.upscale_model);
+
+  // 提示词（原文模式直接放）
+  if (r.prompt){
+    $('#structBox').style.display = 'none';
+    $('#rawBox').style.display = 'block';
+    $('#prompt').value = r.prompt;
+    $('#prompt').dispatchEvent(new Event('input'));
+    applied++;
+  }
+
+  // 刷新联动
+  if ($('#engine')) $('#engine').dispatchEvent(new Event('change'));
+  updateEst();
+  checkRatio();
+  updateStepWarn();
+  if ($('#upscale')) $('#upscale').dispatchEvent(new Event('change'));
+  updateLoraWarn();
+
+  // 滚动到表单顶部
+  document.querySelector('.cols > div')?.scrollIntoView({behavior:'smooth', block:'start'});
+
+  toast(`已回填 ${applied} 项参数（种子 ${r.seed ?? '—'}）`, 3000);
 }
 
 async function refreshJobs(){
@@ -761,7 +1082,40 @@ function escapeHtml(s){
 }
 
 async function cancelJob(id){ await jpost(`/dsh/api/jobs/${id}/cancel`); refreshJobs(); }
-async function delJob(id){ await jpost(`/dsh/api/jobs/${id}/delete`); refreshJobs(); }
+async function delJob(id){
+  if (KEEP_MODE){
+    const r = await jpost(`/dsh/api/jobs/${id}/delete`, {keep_files: true});
+    if (r && r.ok){ toast('已移除任务记录（文件保留）'); }
+    else { toast('删除失败：' + ((r && r.error) || '')); }
+    refreshJobs();
+    return;
+  }
+  const j = JOB_DATA.get(id);
+  let msg = '删除这个任务？';
+  if (j){
+    const n = (j.outputs || []).length;
+    msg = n
+      ? `确认删除？\n\n将同时清掉 ${n} 个视频文件（ComfyUI 产出原件 + 工作台副本）。\n此操作不可恢复。`
+      : '确认删除这个任务记录？';
+  }
+  if (!confirm(msg)) return;
+
+  const r = await jpost(`/dsh/api/jobs/${id}/delete`, {keep_files: false});
+  if (r && r.ok){
+    const n = (r.removed || []).length;
+    if ((r.failed || []).length) {
+      toast(`已删 ${n} 个文件，${r.failed.length} 个失败`, 4000);
+      console.warn('删除失败明细', r.failed);
+    } else if (n){
+      toast(`已删除任务并清理 ${n} 个文件`);
+    } else {
+      toast('已删除任务');
+    }
+  } else {
+    toast('删除失败：' + ((r && r.error) || ''));
+  }
+  refreshJobs();
+}
 
 /* ---------- 超分 / 拼接 / A-B ---------- */
 
@@ -841,6 +1195,7 @@ function collectBody(){
     seconds: totalSec,
     total_seconds: totalSec,
     seg_seconds: 15,
+    length_mode: ($('#lengthMode') && $('#lengthMode').value) || 'auto',
     steps: $('#steps').value,
     seed: $('#seed').value,
     unet: $('#unet').value,
@@ -978,6 +1333,79 @@ function currentPrompt(){
   return ($('#rawBox').style.display === 'none') ? buildPrompt() : $('#prompt').value;
 }
 
+/* ---------- 提示词预设（AICG3D） ---------- */
+
+let PRESETS = { cats: [], items: [], loaded: false };
+let PRESET_CUR = null;
+
+async function loadPresets(){
+  if (PRESETS.loaded) return;
+  let d;
+  try { d = await jget('/dsh/api/presets'); } catch(e){ toast('预设加载失败'); return; }
+  if (!d.ok){ toast(d.error || '预设不可用', 4000); return; }
+
+  PRESETS.cats = d.categories || [];
+  PRESETS.items = d.items || [];
+  PRESETS.loaded = true;
+
+  const sel = $('#presetCat');
+  sel.innerHTML = '<option value="">全部分类（' + PRESETS.items.length + '）</option>' +
+    PRESETS.cats.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+
+  $('#presetCount').textContent = PRESETS.items.length;
+  renderPresetList();
+}
+
+function renderPresetList(){
+  const cat = $('#presetCat').value;
+  const q = ($('#presetSearch').value || '').trim().toLowerCase();
+  let items = PRESETS.items;
+  if (cat) items = items.filter(i => i.category === cat);
+  if (q) items = items.filter(i => (i.name||'').toLowerCase().includes(q) ||
+                                   (i.id||'').toLowerCase().includes(q));
+
+  if (!items.length){
+    $('#presetList').innerHTML = '<div class="empty" style="padding:14px 0">没有匹配</div>';
+    return;
+  }
+  $('#presetList').innerHTML = items.slice(0, 200).map(i => `
+    <div style="padding:5px 7px;border-radius:6px;cursor:pointer;font-size:12px;
+         background:var(--panel);border:1px solid var(--line);margin-bottom:3px"
+         onclick="previewPreset('${i.id}','${escapeAttr(i.name)}')">
+      <div style="color:var(--tx)">${escapeHtml(i.name||i.id)}</div>
+      <div style="font-size:10.5px;color:var(--tx2);margin-top:1px">
+        ${escapeHtml(i.category||'')} · ${i.chars||0} 字
+      </div>
+    </div>`).join('');
+}
+
+function escapeAttr(s){
+  return String(s||'').replace(/'/g, "\\'").replace(/"/g,'&quot;');
+}
+
+async function previewPreset(id, name){
+  let d;
+  try { d = await jget('/dsh/api/presets/' + encodeURIComponent(id)); }
+  catch(e){ toast('读取失败'); return; }
+  if (!d.ok){ toast(d.error || '读取失败'); return; }
+
+  PRESET_CUR = { id, name: name || id, text: d.text };
+  $('#presetTitle').textContent = name || id;
+  $('#presetBody').textContent = d.text;
+  $('#presetPreview').style.display = 'block';
+}
+
+function insertPreset(){
+  if (!PRESET_CUR) return;
+  // 切到原文模式，把预设正文放进去
+  $('#structBox').style.display = 'none';
+  $('#rawBox').style.display = 'block';
+  $('#prompt').value = PRESET_CUR.text;
+  $('#prompt').dispatchEvent(new Event('input'));
+  $('#presetPreview').style.display = 'none';
+  toast('已填入预设：' + PRESET_CUR.name, 3000);
+}
+
 /* ---------- 事件 ---------- */
 $('#drop').onclick = () => $('#file').click();
 $('#file').onchange = e => upload(e.target.files[0]);
@@ -992,6 +1420,12 @@ $('#drop').addEventListener('drop', e => {
 });
 $('#go').onclick = submit;
 $('#refresh').onclick = refreshJobs;
+$('#keepMode').addEventListener('change', e => {
+  KEEP_MODE = e.target.checked;
+  // 清空签名缓存，强制下一轮全部重绘（按钮文案会跟着变）
+  JOB_SIG.clear();
+  refreshJobs();
+});
 document.querySelectorAll('[data-steps]').forEach(b => {
   b.onclick = () => {
     $('#steps').value = b.dataset.steps;
@@ -1008,9 +1442,24 @@ $('#btnConcatClear').onclick = () => { SEL_JOBS.clear(); updateConcatBar();
     if (cb) cb.checked = false;
   });
 };
-['#tier','#orientation','#seconds','#steps'].forEach(s => $(s).addEventListener('change', () => {
-  updateEst(); checkRatio(); updateStepWarn();
-}));
+['#tier','#orientation','#seconds','#steps','#lengthMode'].forEach(s => {
+  const el = $(s);
+  if (el) el.addEventListener('change', () => { updateEst(); checkRatio(); updateStepWarn(); });
+});
+
+$('#btnPreset').onclick = async () => {
+  const box = $('#presetBox');
+  if (box.style.display === 'none'){
+    box.style.display = 'block';
+    await loadPresets();
+  } else {
+    box.style.display = 'none';
+  }
+};
+$('#presetCat').onchange = renderPresetList;
+$('#presetSearch').oninput = renderPresetList;
+$('#presetInsert').onclick = insertPreset;
+$('#presetClose').onclick = () => { $('#presetPreview').style.display = 'none'; };
 
 $('#btnStruct').onclick = () => {
   $('#structBox').style.display = 'block';
@@ -1128,15 +1577,18 @@ function fmPreview(name){
   }
 
   const mask = document.createElement('div');
+  mask.className = 'media-mask';
   mask.style.cssText = `position:fixed;inset:0;background:#000c;z-index:999;
     display:flex;align-items:center;justify-content:center;padding:24px`;
   mask.innerHTML = `<div style="max-width:900px;width:100%;background:var(--panel);
     border:1px solid var(--line);border-radius:12px;padding:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <span style="font-size:12.5px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis">${escapeHtml(name)}</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;
+         gap:8px;flex-wrap:wrap">
+      <span style="font-size:12.5px;color:var(--tx2);overflow:hidden;text-overflow:ellipsis;
+            max-width:100%">${escapeHtml(name)}</span>
       <span style="display:flex;gap:8px">
         <a href="/dsh/api/files/download?root=${encodeURIComponent(FM.root)}&path=${encodeURIComponent(p)}"
-           style="font-size:12px;color:var(--acc);text-decoration:none;padding:4px 10px;
+           style="font-size:12px;color:var(--acc);text-decoration:none;padding:6px 12px;
            border:1px solid var(--line);border-radius:6px">下载</a>
         <button class="btn ghost" style="width:auto;margin:0;padding:4px 10px;font-size:12px">关闭</button>
       </span>

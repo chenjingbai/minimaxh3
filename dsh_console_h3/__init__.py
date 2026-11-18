@@ -366,10 +366,49 @@ def _save_state():
         pass
 
 
+REFILL_KEYS = (
+    "engine", "tier", "orientation", "seconds", "total_seconds", "length_mode",
+    "steps", "seed", "unet", "vae_video", "vae_audio", "clip",
+    "use_lora", "lora", "lora_strength",
+    "upscale_scale", "upscale_model",
+    "taomate_lora", "taomate_strength",
+)
+
+
+def _refill(spec, job):
+    """从 spec 提取可回填到前端的参数字段。"""
+    if not spec:
+        return None
+    out = {}
+    for k in REFILL_KEYS:
+        if k in spec and spec[k] not in (None, ""):
+            out[k] = spec[k]
+    out["prompt"] = spec.get("prompt") or ""
+
+    # 补上任务级别的展示字段（有些老任务 spec 里没有 tier）
+    if "tier" not in out:
+        w = job.get("width") or 0
+        h = job.get("height") or 0
+        if w and h:
+            mw, mh = min(w, h), max(w, h)
+            if mw <= 400:   out["tier"] = "small"
+            elif mw <= 600: out["tier"] = "mid"
+            else:           out["tier"] = "big"
+            out["orientation"] = "portrait" if h > w else "landscape"
+    if "seconds" not in out and job.get("total_seconds"):
+        out["seconds"] = job["total_seconds"]
+    if "steps" not in out and job.get("steps"):
+        out["steps"] = job["steps"]
+    if "seed" not in out and job.get("seed") is not None:
+        out["seed"] = job["seed"]
+    return out
+
+
 def _public(job):
     d = dict(job)
-    d.pop("spec", None)
+    spec = d.pop("spec", None)
     d.pop("graph", None)
+    d["refill"] = _refill(spec, job)
     return d
 
 
@@ -596,8 +635,15 @@ def _collect_outputs(pid, outputs):
                     dst.write_bytes(src.read_bytes())
                 except Exception:
                     continue
-                got.append({"name": dst_name, "url": "/dsh/api/media/%s" % dst_name,
-                            "bytes": dst.stat().st_size, "kind": ext.lstrip(".")})
+                got.append({
+                    "name": dst_name,
+                    "url": "/dsh/api/media/%s" % dst_name,
+                    "bytes": dst.stat().st_size,
+                    "kind": ext.lstrip("."),
+                    # 记录产出原件位置，删任务时一并清理
+                    "origin": str(src),
+                    "origin_rel": str(Path(sub) / fn) if sub else fn,
+                })
     return got
 
 
@@ -1052,7 +1098,176 @@ async def _options(request):
         },
         "h3_inputs": h3_inputs,
         "tiers": {k: list(v) for k, v in TIERS.items()},
+        "presets": preset_index(),
+        "compat": build_compat(files),
     })
+
+
+# ---------------------------------------------------------------- 模型兼容性判定
+
+def _classify_unet(name):
+    """按文件名判定底层模型族。"""
+    n = (name or "").lower()
+    if "hyperflow" in n:
+        return "hyperflow"
+    if "fasth3" in n or "fastvideo" in n:
+        return "fastvideo"
+    if "minimax_h3" in n and ("pruned" in n or "int8" in n or "bf16" in n):
+        return "h3_base"
+    return "unknown"
+
+
+def _classify_lora(name):
+    """按文件名判定 LoRA 面向的底模。"""
+    n = (name or "").lower()
+    if any(k in n for k in ("taomate", "step3000")):
+        return {"target": "h3_base", "kind": "distill3",
+                "note": "TaoMate 3 步蒸馏，需 BSAITaoMate 节点链路，且面向 33B 原版"}
+    if "convrot" in n and ("w4a8" in n or "int4" in n):
+        return {"target": "unknown", "kind": "convrot",
+                "note": "ConvRot 量化 LoRA，需专用加载器"}
+    if "hyperflow" in n:
+        return {"target": "hyperflow", "kind": "lora",
+                "note": "HyperFlow 专用"}
+    if "ref2v" in n:
+        return {"target": "h3_base", "kind": "ref2v",
+                "note": "参考生视频 turbo LoRA，面向 33B 原版"}
+    if "fl2v" in n or "t2v" in n:
+        return {"target": "h3_base", "kind": "lora",
+                "note": "turbo/蒸馏 LoRA，面向 33B 原版"}
+    if "pika" in n:
+        return {"target": "h3_base", "kind": "pika",
+                "note": "Pika H3 Flex，面向 33B 原版"}
+    if "dmad" in n:
+        return {"target": "h3_base", "kind": "dmad",
+                "note": "DMAD 蒸馏，面向 33B 原版"}
+    return {"target": "unknown", "kind": "lora", "note": "用途未知"}
+
+
+def build_compat(files_fn):
+    """给前端一份「哪个 LoRA 能在哪个底模上用」的表。"""
+    unets = files_fn("diffusion_models") or []
+    loras = files_fn("loras") or []
+
+    unet_info = {}
+    for u in unets:
+        fam = _classify_unet(u)
+        unet_info[u] = {"family": fam, "label": {
+            "hyperflow": "HyperFlow 14B（压缩模型）",
+            "fastvideo": "FastVideo FastH3",
+            "h3_base": "MiniMax H3 33B 原版",
+            "unknown": "未知",
+        }.get(fam, fam)}
+
+    lora_info = {}
+    for l in loras:
+        c = _classify_lora(l)
+        lora_info[l] = c
+
+    return {"unets": unet_info, "loras": lora_info}
+
+
+def check_compat(unet_name, lora_name):
+    """返回 (ok, reason)。"""
+    if not lora_name:
+        return True, ""
+    uf = _classify_unet(unet_name)
+    lc = _classify_lora(lora_name)
+    lt = lc["target"]
+
+    if lt == "unknown":
+        return True, "用途未知，可能无效"
+    if uf == "unknown":
+        return True, "底模未知，无法判定"
+    if lt == uf:
+        return True, ""
+    # 特例：TaoMate 走专用链路，由 taomate 字段单独控制
+    if lc["kind"] == "distill3":
+        return False, "TaoMate 是 3 步蒸馏，需专用节点链路；当前引擎不是它"
+    return False, "%s 面向「%s」，当前底模是「%s」，结构不匹配，加载会失败或无效" % (
+        lora_name, lc["note"], {
+            "hyperflow": "HyperFlow 14B",
+            "fastvideo": "FastVideo",
+            "h3_base": "H3 33B 原版",
+        }.get(uf, uf))
+
+
+# ---------------------------------------------------------------- AICG3D 提示词预设
+
+PRESET_ROOTS = [
+    Path("/opt/ComfyUI/custom_nodes/comfyui-AICG3D/prompt_presets"),
+    Path("/workspace/comfyui-AICG3D/prompt_presets"),
+]
+
+_preset_cache = {"t": 0.0, "data": None}
+
+
+def _preset_dir():
+    for p in PRESET_ROOTS:
+        if (p / "manifest.json").is_file():
+            return p
+    return None
+
+
+def preset_index():
+    """读 AICG3D 的 manifest.json，返回分类 + 条目（不含正文）。"""
+    if _preset_cache["data"] is not None and time.time() - _preset_cache["t"] < 300:
+        return _preset_cache["data"]
+
+    root = _preset_dir()
+    if root is None:
+        return {"ok": False, "error": "未安装 comfyui-AICG3D", "categories": [], "items": []}
+    try:
+        m = json.loads((root / "manifest.json").read_text("utf-8"))
+    except Exception as e:
+        return {"ok": False, "error": str(e), "categories": [], "items": []}
+
+    cats = m.get("categories") or []
+    items = []
+    for it in (m.get("items") or []):
+        items.append({
+            "id": it.get("id"),
+            "name": it.get("name"),
+            "category": it.get("category"),
+            "chars": it.get("chars", 0),
+        })
+    data = {"ok": True, "count": len(items), "categories": cats, "items": items,
+            "root": str(root)}
+    _preset_cache["data"] = data
+    _preset_cache["t"] = time.time()
+    return data
+
+
+def preset_text(preset_id):
+    """按 id 读 SKILL.cn.md 正文。"""
+    root = _preset_dir()
+    if root is None:
+        return None
+    idx = preset_index()
+    cat = None
+    for it in idx.get("items", []):
+        if it["id"] == preset_id:
+            cat = it["category"]
+            break
+    if cat is None:
+        # id 本身可能就是目录名
+        for d in root.rglob(preset_id):
+            if d.is_dir():
+                cat = d.parent.name
+                break
+    cands = []
+    if cat:
+        cands.append(root / cat / preset_id)
+    cands.append(root / "h3" / preset_id)
+    for d in cands:
+        for fname in ("SKILL.cn.md", "SKILL.md", "prompt.md", "README.md"):
+            f = d / fname
+            if f.is_file():
+                try:
+                    return f.read_text("utf-8", errors="replace")
+                except Exception:
+                    pass
+    return None
 
 
 def validate_graph(graph):
@@ -1137,23 +1352,51 @@ async def _submit(request):
     spec["taomate_lora"] = (spec.get("taomate_lora") or "").strip()
     spec["taomate_strength"] = float(spec.get("taomate_strength") or 1.0)
 
+    # LoRA 兼容性前置检查
+    use_lora_name = (spec.get("lora") or "").strip() if spec.get("use_lora") else ""
+    if use_lora_name:
+        ok, why = check_compat(spec.get("unet"), use_lora_name)
+        if not ok:
+            return web.json_response({
+                "ok": False, "error": "LoRA 与底模不匹配：" + why
+            }, status=400)
+
     # 长片：按目标总时长拆段
+    # mode = auto（默认，>15s 才拆） / single（强制一段，即使超过 15s 也按上限截断） / chain（强制拆段）
+    mode = (spec.get("length_mode") or "auto").strip()
     total_sec = float(spec.get("total_seconds") or spec.get("seconds") or 5)
     seg_sec = float(spec.get("seg_seconds") or 15)
-    if total_sec > SEG_MAX_SECONDS + 0.01:
+
+    if mode == "single":
+        # 单段：帧数直接按总时长算，但 clamp 到 H3 上限 362
+        spec["segments_total"] = 1
+        spec["length"] = min(frames_for_seconds(total_sec), SEG_MAX_FRAMES)
+        spec["total_seconds"] = round(spec["length"] / 24.0, 2)
+        spec["length_mode"] = "single"
+        if total_sec > SEG_MAX_SECONDS + 0.01:
+            spec["note"] = "单段模式已按 15 秒上限截断"
+    elif mode == "chain" or total_sec > SEG_MAX_SECONDS + 0.01:
         plan = plan_segments(total_sec, seg_sec)
-        spec["segments_total"] = len(plan)
-        spec["seg_seconds"] = min(seg_sec, SEG_MAX_SECONDS)
-        spec["total_seconds"] = total_sec
-        # 单段实际帧数取第一段
-        spec["length"] = plan[0]["frames"]
-        if spec["upscale_scale"] > 1:
-            return web.json_response({
-                "ok": False,
-                "error": "长片暂不支持生成时超分，请生成完成后在任务卡片上单独超分"
-            }, status=400)
+        if len(plan) <= 1:
+            # 目标时长不足一段，等价单段
+            spec["segments_total"] = 1
+            spec["length"] = plan[0]["frames"] if plan else frames_for_seconds(total_sec)
+            spec["total_seconds"] = round(spec["length"] / 24.0, 2)
+            spec["length_mode"] = "auto"
+        else:
+            spec["segments_total"] = len(plan)
+            spec["seg_seconds"] = min(seg_sec, SEG_MAX_SECONDS)
+            spec["total_seconds"] = total_sec
+            spec["length"] = plan[0]["frames"]
+            spec["length_mode"] = "chain"
+            if spec["upscale_scale"] > 1:
+                return web.json_response({
+                    "ok": False,
+                    "error": "长片分段模式暂不支持生成时超分，请生成完成后在任务卡片上单独超分"
+                }, status=400)
     else:
         spec["segments_total"] = 1
+        spec["length_mode"] = "auto"
 
     # 提交前校验：节点是否存在、输入名是否被版本改过
     graph = build_hyperflow(spec) if engine == "hyperflow" else build_native(spec)
@@ -1225,13 +1468,72 @@ async def _cancel(request):
 
 @routes.post("/dsh/api/jobs/{job_id}/delete")
 async def _delete(request):
+    """删除任务，同时清掉产出原件（ComfyUI output）与工作台副本。
+
+    默认 keep_files=False，即「删任务=清盘」。
+    前端传 {"keep_files": true} 可只删记录、保留文件。
+    """
     jid = request.match_info["job_id"]
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    keep = bool(isinstance(body, dict) and body.get("keep_files"))
+
+    removed, failed = [], []
+
+    with _jlock:
+        job = _jobs.get(jid)
+        job_copy = dict(job) if job else None
+
+    if job_copy and not keep:
+        # 1) 工作台副本
+        for o in (job_copy.get("outputs") or []):
+            nm = o.get("name")
+            if not nm:
+                continue
+            p = VIDEO_DIR / nm
+            try:
+                if p.is_file():
+                    p.unlink()
+                    removed.append(str(p))
+            except Exception as e:
+                failed.append("%s: %s" % (p, e))
+
+        # 2) ComfyUI 产出原件
+        for o in (job_copy.get("outputs") or []):
+            rel = o.get("origin_rel") or ""
+            if not rel:
+                continue
+            try:
+                src = output_dir() / rel
+                src = src.resolve()
+                # 只允许删 output 目录内的东西
+                if output_dir().resolve() in src.parents and src.is_file():
+                    src.unlink()
+                    removed.append(str(src))
+            except Exception as e:
+                failed.append("origin %s: %s" % (rel, e))
+
     with _jlock:
         _jobs.pop(jid, None)
         if jid in _order:
             _order.remove(jid)
+        # 同步清理其他任务里指向已删文件的引用
+        if not keep:
+            for j in _jobs.values():
+                outs = j.get("outputs") or []
+                if outs:
+                    j["outputs"] = [o for o in outs
+                                    if (VIDEO_DIR / o.get("name", "")).is_file()]
     _save_state()
-    return web.json_response({"ok": True})
+
+    return web.json_response({
+        "ok": True,
+        "kept_files": keep,
+        "removed": removed,
+        "failed": failed,
+    })
 
 
 # ---------------------------------------------------------------- 超分任务
@@ -1457,6 +1759,36 @@ def _safe_path(root_key, rel):
     except ValueError:
         return root, None          # 越界
     return root, target
+
+
+@routes.get("/dsh/api/presets")
+async def _presets(request):
+    idx = preset_index()
+    if not idx.get("ok"):
+        return web.json_response(idx, status=200)
+    q = (request.query.get("q") or "").strip().lower()
+    cat = (request.query.get("cat") or "").strip()
+    items = idx["items"]
+    if cat:
+        items = [i for i in items if i["category"] == cat]
+    if q:
+        items = [i for i in items if q in (i["name"] or "").lower()
+                 or q in (i["id"] or "").lower()]
+    return web.json_response({
+        "ok": True, "count": len(items),
+        "categories": idx["categories"], "items": items,
+    })
+
+
+@routes.get("/dsh/api/presets/{preset_id}")
+async def _preset_one(request):
+    pid = request.match_info["preset_id"]
+    if "/" in pid or ".." in pid:
+        return web.json_response({"ok": False, "error": "非法 id"}, status=400)
+    txt = preset_text(pid)
+    if txt is None:
+        return web.json_response({"ok": False, "error": "找不到预设"}, status=404)
+    return web.json_response({"ok": True, "id": pid, "text": txt, "chars": len(txt)})
 
 
 @routes.get("/dsh/api/files")
