@@ -378,19 +378,43 @@ done
 
 # 工作台：脚本同级 → /workspace/dsh_console_h3
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TARGET=/workspace/dsh_console_h3
+
+# 先清掉历史遗留的自引用/断链（ln -sfn X X 会造出自引用，必须 unlink）
+if [ -L "$TARGET" ]; then
+  cur=$(readlink "$TARGET")
+  if [ "$cur" = "$TARGET" ] || [ ! -e "$TARGET" ]; then
+    c_y "  清理坏软链 $TARGET → $cur"
+    unlink "$TARGET" 2>/dev/null || rm -f "$TARGET"
+  fi
+fi
+if [ -L "$COMFY/custom_nodes/dsh_console_h3" ]; then
+  c2=$(readlink "$COMFY/custom_nodes/dsh_console_h3")
+  [ ! -e "$COMFY/custom_nodes/dsh_console_h3" ] && rm -f "$COMFY/custom_nodes/dsh_console_h3"
+fi
+
 WS_SRC=""
-for cand in "$SCRIPT_DIR/dsh_console_h3" /workspace/dsh_console_h3 /workspace/h3-deploy/dsh_console_h3; do
-  if [ -f "$cand/__init__.py" ] && [ -f "$cand/ui.html" ]; then WS_SRC="$cand"; break; fi
+for cand in "$SCRIPT_DIR/dsh_console_h3" /workspace/h3-deploy/dsh_console_h3; do
+  [ -f "$cand/__init__.py" ] && [ -f "$cand/ui.html" ] && { WS_SRC="$cand"; break; }
 done
+# 目标目录本身是真目录也认
+if [ -d "$TARGET" ] && [ ! -L "$TARGET" ] && [ -f "$TARGET/__init__.py" ]; then
+  WS_SRC="$TARGET"
+fi
+
 if [ -n "$WS_SRC" ]; then
-  [ "$WS_SRC" != "/workspace/dsh_console_h3" ] && ln -sfn "$WS_SRC" /workspace/dsh_console_h3 2>/dev/null || true
-  rm -rf /workspace/dsh_console_h3/__pycache__ "$COMFY/custom_nodes/dsh_console_h3/__pycache__" 2>/dev/null || true
-  ln -sfn /workspace/dsh_console_h3 "$COMFY/custom_nodes/dsh_console_h3"
-  ok "工作台 → $WS_SRC"
+  # 只有源码不在目标位置时才建链，且绝不链到自己
+  if [ "$WS_SRC" != "$TARGET" ]; then
+    rm -rf "$TARGET" 2>/dev/null || true
+    ln -sfn "$WS_SRC" "$TARGET"
+  fi
+  rm -rf "$TARGET/__pycache__" 2>/dev/null || true
+  ln -sfn "$TARGET" "$COMFY/custom_nodes/dsh_console_h3"
+  ok "工作台 → $(readlink -f "$TARGET")"
 else
-  mkdir -p /workspace/dsh_console_h3
-  ln -sfn /workspace/dsh_console_h3 "$COMFY/custom_nodes/dsh_console_h3"
-  no "未找到工作台源码，需上传 __init__.py + ui.html"
+  mkdir -p "$TARGET"
+  ln -sfn "$TARGET" "$COMFY/custom_nodes/dsh_console_h3"
+  no "未找到工作台源码，需上传 __init__.py + ui.html 到 $TARGET"
 fi
 
 # ---------------------------------------------------------------- 7 启动 + 隧道
