@@ -90,8 +90,13 @@ do_start() {
   fi
 
   c_b "启动 ComfyUI ..."
-  cd "$COMFY" || return 1
-  nohup "$PY" -u main.py "${ARGS[@]}" >>"$LOG" 2>&1 &
+  if [ -x /workspace/start.sh ]; then
+    c_g "  用 /workspace/start.sh 启动（参数统一入口）"
+    nohup /workspace/start.sh >>"$LOG" 2>&1 &
+  else
+    cd "$COMFY" || return 1
+    nohup "$PY" -u main.py "${ARGS[@]}" >>"$LOG" 2>&1 &
+  fi
   echo $! >"$PIDFILE"
 
   c_y "等待服务就绪 ..."

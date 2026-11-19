@@ -58,6 +58,8 @@ PYEOF
 }
 
 restart_with(){ # $@ = launch args
+  # 测速专用：要能换参数重启，所以不走 /workspace/start.sh（那里参数是固定的）
+  # 生产环境请用 /workspace/start.sh
   pkill -f 'venv/bin/python.*main\.py' 2>/dev/null
   sleep 3
   cd "$COMFY" || return 1

@@ -247,14 +247,21 @@ do_start_svc(){
   [ -f "$COMFY/main.py" ] || { ng "ComfyUI 未安装，先跑 ./h3 fix"; return 1; }
 
   step "启动 ComfyUI"
-  cd "$COMFY" || return 1
-  nohup "$PY" -u main.py \
-    --disable-pinned-memory \
-    --disable-async-offload \
-    --disable-dynamic-vram \
-    --reserve-vram 2 \
- >> "$LOG" 2>&1 &
-  echo $! > /opt/comfy.pid
+  # 参数统一由 /workspace/start.sh 提供，避免各脚本各写一份
+  if [ -x /workspace/start.sh ]; then
+    c_y "  用 /workspace/start.sh 启动"
+    nohup /workspace/start.sh >> "$LOG" 2>&1 &
+    echo $! > /opt/comfy.pid
+  else
+    c_y "  未找到 /workspace/start.sh，用内置参数"
+    cd "$COMFY" || return 1
+    nohup "$PY" -u main.py \
+      --disable-pinned-memory \
+      --disable-async-offload \
+      --disable-dynamic-vram \
+      --reserve-vram 2 >> "$LOG" 2>&1 &
+    echo $! > /opt/comfy.pid
+  fi
 
   c_y "  等待就绪..."
   if wait_ready 180; then

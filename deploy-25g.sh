@@ -500,10 +500,18 @@ fi
 # ---------------------------------------------------------------- 7 启动 + 隧道
 step "7/7 启动服务与隧道"
 pkill -f 'venv/bin/python.*main\.py' 2>/dev/null; sleep 2
-cd "$COMFY" || exit 1
-nohup "$PY" -u main.py \
-  --disable-pinned-memory --disable-async-offload --disable-dynamic-vram \
-  --reserve-vram 2 >> "$LOG" 2>&1 &
+
+# 统一走 /workspace/start.sh，参数只在那一个文件里维护
+if [ -x /workspace/start.sh ]; then
+  c_y "  用 /workspace/start.sh 启动"
+  nohup /workspace/start.sh >> "$LOG" 2>&1 &
+else
+  c_y "  未找到 /workspace/start.sh，用内置参数"
+  cd "$COMFY" || exit 1
+  nohup "$PY" -u main.py \
+    --disable-pinned-memory --disable-async-offload --disable-dynamic-vram \
+    --reserve-vram 2 >> "$LOG" 2>&1 &
+fi
 
 c_y "  等待就绪..."
 READY=0

@@ -238,10 +238,17 @@ fi
 # ---------------------------------------------------------------- 8 启动
 step "8/8 启动并自检"
 pkill -f 'venv/bin/python.*main\.py' 2>/dev/null; sleep 2
-cd "$COMFY" || exit 1
-nohup "$PY" -u main.py \
-  --disable-pinned-memory --disable-async-offload --disable-dynamic-vram \
-  --reserve-vram 2 >> "$LOG" 2>&1 &
+
+if [ -x /workspace/start.sh ]; then
+  c_y "  用 /workspace/start.sh 启动"
+  nohup /workspace/start.sh >> "$LOG" 2>&1 &
+else
+  c_y "  未找到 /workspace/start.sh，用内置参数"
+  cd "$COMFY" || exit 1
+  nohup "$PY" -u main.py \
+    --disable-pinned-memory --disable-async-offload --disable-dynamic-vram \
+    --reserve-vram 2 >> "$LOG" 2>&1 &
+fi
 echo $! > /opt/comfy.pid
 
 c_y "  等待服务就绪..."
