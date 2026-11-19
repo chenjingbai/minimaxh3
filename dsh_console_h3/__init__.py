@@ -1321,6 +1321,13 @@ async def _upload(request):
 
 @routes.post("/dsh/api/submit")
 async def _submit(request):
+    def files_fn(kind):
+        try:
+            import folder_paths
+            return folder_paths.get_filename_list(kind)
+        except Exception:
+            return []
+
     try:
         spec = await request.json()
     except Exception:
@@ -1341,6 +1348,49 @@ async def _submit(request):
     if engine == "native" and spec.get("use_lora"):
         spec["sampler"] = spec.get("sampler") or "euler"
         spec["scheduler"] = spec.get("scheduler") or "simple"
+
+    # ---- 关键字段校验与自动补全 ----
+    # 外部调用（脚本/API）常常不带 unet/vae/clip，这里自动挑默认值，
+    # 避免 build_* 里抛 KeyError 变成 500。
+    def _pick(kind, prefer, exclude=()):
+        try:
+            names = files_fn(kind) or []
+        except Exception:
+            names = []
+        for p in prefer:
+            for n in names:
+                if p in n.lower() and not any(x in n.lower() for x in exclude):
+                    return n
+        return names[0] if names else ""
+
+    if not (spec.get("unet") or "").strip():
+        pref = ["hyperflow"] if engine == "hyperflow" else ["pruned_int8", "fl2va"]
+        spec["unet"] = _pick("diffusion_models", pref)
+        if not spec["unet"]:
+            return web.json_response({
+                "ok": False, "error": "没有可用的模型文件（diffusion_models 为空）"
+            }, status=400)
+
+    if not (spec.get("clip") or "").strip():
+        spec["clip"] = _pick("text_encoders", ["nvfp4", "qwen3vl"])
+        if not spec["clip"]:
+            return web.json_response({
+                "ok": False, "error": "没有可用的文本编码器（text_encoders 为空）"
+            }, status=400)
+
+    if not (spec.get("vae_video") or "").strip():
+        spec["vae_video"] = _pick("vae", ["video_vae_int8", "video_vae_fp16", "video_vae"])
+        if not spec["vae_video"]:
+            return web.json_response({
+                "ok": False, "error": "没有可用的视频 VAE"
+            }, status=400)
+
+    if not (spec.get("vae_audio") or "").strip():
+        spec["vae_audio"] = _pick("vae", ["audio_vae"])
+        if not spec["vae_audio"]:
+            return web.json_response({
+                "ok": False, "error": "没有可用的音频 VAE"
+            }, status=400)
 
     # 超分：0=不超分，2=2x，4=4x（仅单段任务生效）
     spec["upscale_scale"] = int(spec.get("upscale_scale") or 0)
@@ -1399,7 +1449,18 @@ async def _submit(request):
         spec["length_mode"] = "auto"
 
     # 提交前校验：节点是否存在、输入名是否被版本改过
-    graph = build_hyperflow(spec) if engine == "hyperflow" else build_native(spec)
+    try:
+        graph = build_hyperflow(spec) if engine == "hyperflow" else build_native(spec)
+    except KeyError as e:
+        return web.json_response({
+            "ok": False,
+            "error": "构建工作流缺少字段 %s。请检查模型是否齐全（unet/clip/vae）。" % (e,)
+        }, status=400)
+    except Exception as e:
+        return web.json_response({
+            "ok": False, "error": "构建工作流失败：%s" % e
+        }, status=400)
+
     problems = validate_graph(graph)
     if problems:
         return web.json_response({"ok": False, "error": "工作流校验失败：" + "；".join(problems[:5])},
